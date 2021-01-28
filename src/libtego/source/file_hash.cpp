@@ -31,7 +31,7 @@ tego_file_hash::tego_file_hash(uint8_t const* begin, uint8_t const* end)
     // calc hash
     EVP_DigestUpdate(ctx.get(), begin, end - begin);
 
-    // copy hash to our loal buffer
+    // copy hash to our local buffer
     uint32_t hashSize = 0;
     EVP_DigestFinal_ex(ctx.get(), data.begin(), &hashSize);
     TEGO_THROW_IF_FALSE(hashSize != this->DIGEST_SIZE);
@@ -53,7 +53,7 @@ tego_file_hash::tego_file_hash(std::istream& stream)
     {
         // read bytes into buffer
         stream.read(buffer.get(), BLOCK_SIZE);
-        const auto bytesRead = stream.gcount();
+        const auto bytesRead = static_cast<size_t>(stream.gcount());
         TEGO_THROW_IF_FALSE_MSG(bytesRead <= BLOCK_SIZE, "Invalid amount of bytes read");
 
         // hash the block
@@ -72,12 +72,16 @@ size_t tego_file_hash::string_size() const
     return DIGEST_SIZE * 2 + 1;
 }
 
-std::string tego_file_hash::to_string() const
+const std::string& tego_file_hash::to_string() const
 {
-    std::stringstream ss;
-    for(auto byte : data)
+    if (hex.empty())
     {
-        fmt::print(ss, "{:02x}", byte);
+        std::stringstream ss;
+        for(auto byte : data)
+        {
+            fmt::print(ss, "{:02x}", byte);
+        }
+        hex = std::move(ss.str());
     }
-    return ss.str();
+    return hex;
 }
