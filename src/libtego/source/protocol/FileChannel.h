@@ -48,8 +48,7 @@ class FileChannel : public Channel
 public:
     typedef quint32 file_id_t;
     typedef quint32 chunk_id_t;
-    constexpr static int FileMaxChunkSize = 2000;
-    constexpr static int SHA3_512_BUFSIZE = 65535;
+    constexpr static int FileMaxChunkSize = 2048;
 
     explicit FileChannel(Direction direction, Connection *connection);
 
@@ -58,7 +57,7 @@ public:
 signals:
     void fileReceived(const QDateTime &time, file_id_t id);
     void fileAcknowledged(file_id_t id, tego_bool_t accepted);
-    
+
 protected:
     virtual bool allowInboundChannelRequest(const Data::Control::OpenChannel *request, Data::Control::ChannelResult *result);
     virtual bool allowOutboundChannelRequest(Data::Control::OpenChannel *request);
@@ -67,7 +66,7 @@ private:
     file_id_t nextFileId();
     file_id_t file_id;
     size_t fsize_to_chunks(size_t sz);
-    
+
     struct queuedFile {
         file_id_t id;
         std::string path;
@@ -98,34 +97,6 @@ private:
     void handleFileHeaderAck(const Data::File::FileHeaderAck &message);
     bool sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t cid);
     bool sendNextChunk(file_id_t id);
-    /*
-     * get the sha3_512 hash of a buffer
-     * @param in : pointer to a buffer with the data to be hashed
-     * @param in_sz : size of in
-     * @param out : pointer to a buffer with at least EVP_MAX_MD_SIZE bytes
-     * allocated to it
-     * @param out_sz : pointer to an int which will have the amount of bytes
-     * written stored in
-     */
-    void sha3_512_buf(const char *in, const unsigned int in_sz, unsigned char *out, unsigned int *out_sz);
-    /*
-     * get the sha3_512 hash of a file by path
-     * @param fpath : file path
-     * @param out : pointer to a buffer with at least EVP_MAX_MD_SIZE bytes
-     * allocated to it
-     * @param out_sz : pointer to an int which will have the amount of bytes
-     * written stored in
-     */
-    void sha3_512_file(std::string &fpath, unsigned char *out, unsigned int *out_sz);
-    /*
-     * get the sha3_512 hash of a file by ifstream reference
-     * @param file : ifstream that has the opened file
-     * @param out : pointer to a buffer with at least EVP_MAX_MD_SIZE bytes
-     * allocated to it
-     * @param out_sz : pointer to an int which will have the amount of bytes
-     * written stored in
-     */
-    void sha3_512_file(std::ifstream &file, unsigned char *out, unsigned int *out_sz);
 };
 
 }

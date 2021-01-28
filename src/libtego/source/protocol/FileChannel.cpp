@@ -38,6 +38,7 @@
 #include "context.hpp"
 #include "error.hpp"
 #include "globals.hpp"
+#include "file_hash.hpp"
 
 using namespace Protocol;
 
@@ -56,46 +57,8 @@ size_t FileChannel::fsize_to_chunks(size_t sz)
     return (sz + (FileMaxChunkSize - 1)) / FileMaxChunkSize;
 }
 
-void FileChannel::sha3_512_buf(const char *in, const unsigned int in_sz,
-                  unsigned char *out, unsigned int *out_sz)
-{
-    EVP_MD_CTX *sha3_512_ctx = EVP_MD_CTX_new();
-    EVP_DigestInit_ex(sha3_512_ctx, EVP_sha3_512(), NULL);
-    EVP_DigestUpdate(sha3_512_ctx, static_cast<const void *>(in), (size_t)in_sz);
-    EVP_DigestFinal_ex(sha3_512_ctx, out, out_sz);
-    EVP_MD_CTX_free(sha3_512_ctx);
-}
-
-void FileChannel::sha3_512_file(std::string &fpath,
-                   unsigned char *out, unsigned int *out_sz)
-{
-    std::ifstream file(fpath, std::ios::in | std::ios::binary);
-    if (!file.is_open()) {
-        BUG() << "Could not open file for sha3_512, are permissions set correctly?";
-    }
-    sha3_512_file(file, out, out_sz);
-    file.close();
-}
-
-void FileChannel::sha3_512_file(std::ifstream &file,
-                    unsigned char *out, unsigned int *out_sz)
-{
-    auto buf = std::make_unique<char[]>(SHA3_512_BUFSIZE);
-
-    EVP_MD_CTX *sha3_512_ctx = EVP_MD_CTX_new();
-    EVP_DigestInit_ex(sha3_512_ctx, EVP_sha3_512(), NULL);
-    while (file.good()) {
-        file.read(buf.get(), SHA3_512_BUFSIZE);
-        auto bytes_read = file.gcount();
-        TEGO_THROW_IF_TRUE_MSG(bytes_read > SHA3_512_BUFSIZE, "Invalid amount of bytes read");
-        EVP_DigestUpdate(sha3_512_ctx, buf.get(), bytes_read);
-    }
-    EVP_DigestFinal_ex(sha3_512_ctx, out, out_sz);
-    EVP_MD_CTX_free(sha3_512_ctx);
-}
-
 bool FileChannel::allowInboundChannelRequest(
-    __attribute__((unused)) const Data::Control::OpenChannel *request, 
+    __attribute__((unused)) const Data::Control::OpenChannel *request,
     Data::Control::ChannelResult *result)
 {
     if (connection()->purpose() != Connection::Purpose::KnownContact) {
@@ -144,7 +107,7 @@ void FileChannel::receivePacket(const QByteArray &packet)
     } else if (message.has_file_chunk_ack()) {
         handleFileChunkAck(message.file_chunk_ack());
     } else if (message.has_file_header_ack()) {
-        handleFileHeaderAck(message.file_header_ack());    
+        handleFileHeaderAck(message.file_header_ack());
     } else {
         qWarning() << "Unrecognized file packet on " << type();
         closeChannel();
@@ -191,6 +154,7 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
                                                     message.file_id()));
 
         /* create directory to store chunks in /tmp */
+        logger::println("Creating temp directory: {}", dirname);
         QDir dir;
         if (!dir.mkdir(dirname)) {
             qWarning() << "Could not create tmp directory";
@@ -242,14 +206,20 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
         response->set_accepted(false);
     }
 
-    if (response->accepted()) {
-        unsigned char sha3_512_out[EVP_MAX_MD_SIZE];
-        unsigned int sha3_512_out_sz;
-        sha3_512_buf(message.chunk_data().c_str(), message.chunk_size(), sha3_512_out, &sha3_512_out_sz);
+    if (response->accepted())
+    {
+        tego_file_hash chunkHash(
+            reinterpret_cast<uint8_t const*>(message.chunk_data().c_str()),
+            reinterpret_cast<uint8_t const*>(message.chunk_data().c_str()) + message.chunk_size());
 
-        if (strncmp(reinterpret_cast<const char *>(sha3_512_out), message.sha3_512().c_str(), sha3_512_out_sz) != 0) {
+        logger::println("Receiving file:chunk {}:{} with hash: {}", message.file_id(), message.chunk_id(), chunkHash.to_string());
+
+        if (chunkHash.to_string() != message.sha3_512())
+        {
             response->set_accepted(false);
-        } else {
+        }
+        else
+        {
             std::string chunk_path = it->path + std::to_string(message.chunk_id());
             std::fstream chunk_file(chunk_path, std::ios::out | std::ios::binary | std::ios::trunc);
 
@@ -298,15 +268,18 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
         out_file.close();
 
         /* sha3_512 validation */
-        unsigned char sha3_512_out[EVP_MAX_MD_SIZE];
-        unsigned int sha3_512_out_sz;
-        sha3_512_file(outf_path, sha3_512_out, &sha3_512_out_sz);
+        std::ifstream fileStream(outf_path, std::ios::in | std::ios::binary);
+        TEGO_THROW_IF_FALSE_MSG(fileStream.is_open(), "Could not open file for reading: {}", outf_path);
 
-        if (strncmp(reinterpret_cast<const char*>(sha3_512_out), it->sha3_512.c_str(), sha3_512_out_sz) != 0) {
-            //todo: handle this better
+        // delete file if calculated hash doesn't match expected
+        if (tego_file_hash fileHash(fileStream);
+            fileHash.to_string() != it->sha3_512)
+        {
+            //todo: handle this better, error should probably surface to user yeah?
             QDir dir;
             dir.remove(QString::fromStdString(outf_path));
             closeChannel();
+            TEGO_THROW_MSG("Hash of completed file {} is {}, was expecting {}", outf_path, fileHash.to_string(), it->sha3_512);
             return;
         }
         //todo: signals
@@ -317,6 +290,8 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 
         auto index = std::distance(pendingRecvFiles.begin(), it);
         pendingRecvFiles.erase(pendingRecvFiles.begin() + index);
+
+        // todo: erase tmp dir (or better yet, put the temp dir in the same place as our destination path)
     }
 }
 
@@ -353,8 +328,8 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message){
     }
 
     auto it =
-        std::find_if(pendingFileHeaders.begin(), 
-        pendingFileHeaders.end(), 
+        std::find_if(pendingFileHeaders.begin(),
+        pendingFileHeaders.end(),
         [message](const queuedFile &qf) { return qf.id == message.file_id(); });
 
     if (it == pendingFileHeaders.end()) {
@@ -377,7 +352,7 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message){
 
 bool FileChannel::sendFileWithId(QString file_uri,
                                  QDateTime,
-                                 file_id_t id) {    
+                                 file_id_t id) {
     if (direction() != Outbound) {
         BUG() << "Attempted to send outbound message on non outbound channel";
         return false;
@@ -410,9 +385,9 @@ bool FileChannel::sendFileWithId(QString file_uri,
         return false;
     }
 
-    unsigned char sha3_512_out[EVP_MAX_MD_SIZE];
-    unsigned int sha3_512_out_len;
-    sha3_512_file(file, sha3_512_out, &sha3_512_out_len);
+    // calculate our file hash
+    tego_file_hash fileHash(file);
+    logger::println("sending file {} with hash: {}", file_path.toStdString(), fileHash.to_string());
 
     file.close();
 
@@ -431,14 +406,14 @@ bool FileChannel::sendFileWithId(QString file_uri,
     header->set_file_id(file_id);
     header->set_size(file_size);
     header->set_chunk_count(file_chunks);
-    header->set_sha3_512(sha3_512_out, sha3_512_out_len);
+    header->set_sha3_512(fileHash.to_string());
     header->set_name(fi.fileName().toStdString());
-    
+
     Data::File::Packet packet;
     packet.set_allocated_file_header(header);
 
     Channel::sendMessage(packet);
-    
+
     /* the first chunk will get sent after the first header ack */
     return true;
 }
@@ -446,8 +421,8 @@ bool FileChannel::sendFileWithId(QString file_uri,
 bool FileChannel::sendNextChunk(file_id_t id) {
     //TODO: check either file digest or file last modified time, if they don't match before, start from chunk 0
     auto it =
-        std::find_if(queuedFiles.begin(), 
-        queuedFiles.end(), 
+        std::find_if(queuedFiles.begin(),
+        queuedFiles.end(),
         [id](const queuedFile &qf) { return qf.id == id; });
 
     if (it == queuedFiles.end()) return false;
@@ -476,7 +451,7 @@ bool FileChannel::sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t 
         qWarning() << "Attempted to start read beyond eof";
         return false;
     }
-    
+
     /* go to the pos of the chunk */
     file.seekg(cid * FileMaxChunkSize);
     if (!file) {
@@ -488,19 +463,20 @@ bool FileChannel::sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t 
 
     file.read(buf.get(), FileMaxChunkSize);
     auto bytes_read = file.gcount();
-    /* the only time bytes_read would be >65535 is if gcount thinks the
+    /* the only time bytes_read would be >FileMaxChunkSize is if gcount thinks the
      * amount of bytes read is unrepresentable, in which case something has
      * gone wrong */
-    TEGO_THROW_IF_TRUE_MSG(bytes_read > 65535, "Invalid amount of bytes read");
-    
-    /* hash this chunk */
-    unsigned char sha3_512_out[EVP_MAX_MD_SIZE];
-    unsigned int sha3_512_out_sz;
-    sha3_512_buf(buf.get(), bytes_read, sha3_512_out, &sha3_512_out_sz);
+    TEGO_THROW_IF_TRUE_MSG(bytes_read > FileMaxChunkSize, "Invalid amount of bytes read");
+
+    tego_file_hash chunkHash(
+        reinterpret_cast<uint8_t const*>(buf.get()),
+        reinterpret_cast<uint8_t const*>(buf.get()) + bytes_read);
+
+    logger::println("Sending file:chunk {}:{} with hash: {}", fid, cid, chunkHash.to_string());
 
     /* send this chunk */
     Data::File::FileChunk *chunk = new Data::File::FileChunk;
-    chunk->set_sha3_512(sha3_512_out, sha3_512_out_sz);
+    chunk->set_sha3_512(chunkHash.to_string());
     chunk->set_file_id(fid);
     chunk->set_chunk_id(cid);
     chunk->set_chunk_size(bytes_read);
