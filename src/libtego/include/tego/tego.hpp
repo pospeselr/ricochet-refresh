@@ -65,4 +65,5 @@ TEGO_DEFAULT_DELETE_IMPL(tego_v3_onion_service_id)
 TEGO_DEFAULT_DELETE_IMPL(tego_tor_launch_config);
 TEGO_DEFAULT_DELETE_IMPL(tego_tor_daemon_config);
 TEGO_DEFAULT_DELETE_IMPL(tego_user_id);
+TEGO_DEFAULT_DELETE_IMPL(tego_file_hash);
 
