@@ -34,7 +34,7 @@ tego_file_hash::tego_file_hash(uint8_t const* begin, uint8_t const* end)
     // copy hash to our local buffer
     uint32_t hashSize = 0;
     EVP_DigestFinal_ex(ctx.get(), data.begin(), &hashSize);
-    TEGO_THROW_IF_FALSE(hashSize != this->DIGEST_SIZE);
+    TEGO_THROW_IF_FALSE(hashSize == this->DIGEST_SIZE);
 }
 
 tego_file_hash::tego_file_hash(std::istream& stream)
@@ -63,7 +63,7 @@ tego_file_hash::tego_file_hash(std::istream& stream)
     // copy hash to our local buffer
     uint32_t hashSize = 0;
     EVP_DigestFinal_ex(ctx.get(), data.begin(), &hashSize);
-    TEGO_THROW_IF_FALSE(hashSize != this->DIGEST_SIZE);
+    TEGO_THROW_IF_FALSE(hashSize == this->DIGEST_SIZE);
 }
 
 size_t tego_file_hash::string_size() const
