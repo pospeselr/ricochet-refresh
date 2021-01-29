@@ -66,10 +66,10 @@ tego_file_hash::tego_file_hash(std::istream& stream)
     TEGO_THROW_IF_FALSE(hashSize == this->DIGEST_SIZE);
 }
 
-size_t tego_file_hash::string_size() const
+constexpr size_t tego_file_hash::string_size() const
 {
-    // two chars per byte plus null terminator
-    return DIGEST_SIZE * 2 + 1;
+
+    return STRING_SIZE;
 }
 
 const std::string& tego_file_hash::to_string() const
@@ -84,4 +84,35 @@ const std::string& tego_file_hash::to_string() const
         hex = std::move(ss.str());
     }
     return hex;
+}
+
+extern "C"
+{
+    size_t tego_file_hash_string_size(
+        tego_file_hash_t const* fileHash,
+        tego_error_t** error)
+    {
+        return tego::translateExceptions([=]() -> size_t
+        {
+            TEGO_THROW_IF_NULL(fileHash);
+            return fileHash->string_size();
+        }, error, 0);
+    }
+
+     size_t tego_file_hash_to_string(
+        tego_file_hash_t const* fileHash,
+        char* out_hashString,
+        size_t hashStringSize,
+        tego_error_t** error)
+    {
+        return tego::translateExceptions([=]() -> size_t
+        {
+            TEGO_THROW_IF_NULL(fileHash);
+            TEGO_THROW_IF_NULL(out_hashString);
+            TEGO_THROW_IF_FALSE(hashStringSize >= fileHash->string_size());
+
+            const auto& hashString = fileHash->to_string();
+            std::copy(hashString.begin(), hashString.end(), out_hashString);
+        }, error, 0);
+    }
 }
