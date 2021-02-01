@@ -68,7 +68,6 @@ tego_file_hash::tego_file_hash(std::istream& stream)
 
 constexpr size_t tego_file_hash::string_size() const
 {
-
     return STRING_SIZE;
 }
 

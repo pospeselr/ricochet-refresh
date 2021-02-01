@@ -589,6 +589,31 @@ void tego_context::forget_user(const tego_user_id_t* user)
     contactUser->deleteContact();
 }
 
+void tego_context::send_attachment_request(
+    tego_user_id_t const* user,
+    char const* filePath,
+    size_t filePathLength,
+    tego_attachment_id_t* out_id,
+    tego_file_hash_t** out_fileHash)
+{
+
+}
+
+void tego_context::acknowledge_attachment_request(
+    tego_user_id_t const* user,
+    tego_attachment_acknowledge_t response,
+    char const* destPath,
+    size_t desPathLength)
+{
+
+}
+
+void tego_context::cancel_attachment_transfer(
+    tego_attachment_id_t)
+{
+
+}
+
 //
 // tego_context private methods
 //
@@ -1000,6 +1025,58 @@ extern "C"
             TEGO_THROW_IF_NULL(context);
 
             context->acknowledge_chat_request(user, response);
+        }, error);
+    }
+
+    void tego_context_send_attachement_request(
+        tego_context* context,
+        tego_user_id_t const*  user,
+        char const* filePath,
+        size_t filePathLength,
+        tego_attachment_id_t* out_id,
+        tego_file_hash_t** out_fileHash,
+        tego_error_t** error)
+    {
+        return tego::translateExceptions([=]() -> void
+        {
+            TEGO_THROW_IF_NULL(context);
+            context->send_attachment_request(
+                user,
+                filePath,
+                filePathLength,
+                out_id,
+                out_fileHash);
+        }, error);
+    }
+
+    void tego_context_acknowledge_attachment_request(
+        tego_context* context,
+        tego_user_id_t const* user,
+        tego_attachment_acknowledge_t response,
+        char const* destPath,
+        size_t destPathLength,
+        tego_error_t** error)
+    {
+        return tego::translateExceptions([=]() -> void
+        {
+            TEGO_THROW_IF_NULL(context);
+            context->acknowledge_attachment_request(
+                user,
+                response,
+                destPath,
+                destPathLength);
+        }, error);
+    }
+
+    void tego_context_cancel_attachment_transfer(
+        tego_context* context,
+        tego_attachment_id_t id,
+        tego_error_t** error)
+    {
+        return tego::translateExceptions([=]() -> void
+        {
+            TEGO_THROW_IF_NULL(context);
+            context->cancel_attachment_transfer(id);
         }, error);
     }
 

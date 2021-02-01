@@ -3,6 +3,7 @@
 #include "error.hpp"
 #include "ed25519.hpp"
 #include "user.hpp"
+#include "file_hash.hpp"
 
 namespace tego
 {
@@ -116,6 +117,36 @@ namespace tego
         tego_user_id_t* user,
         tego_message_id_t,
         tego_bool_t)
+    {
+        delete user;
+    }
+
+    void callback_registry::cleanup_attachment_request_received_args(
+        tego_user_id_t* user,
+        tego_attachment_id_t,
+        char* filename,
+        size_t,
+        uint64_t,
+        tego_file_hash_t* fileHash)
+    {
+        delete user;
+        delete[] filename;
+        delete fileHash;
+    }
+
+    void callback_registry::cleanup_attachment_request_acknowledged_args(
+        tego_user_id_t* user,
+        tego_attachment_id_t,
+        tego_attachment_acknowledge_t)
+    {
+        delete user;
+    }
+
+    void callback_registry::cleanup_attachment_progress_args(
+        tego_user_id_t* user,
+        tego_attachment_id_t,
+        uint64_t,
+        uint64_t)
     {
         delete user;
     }
@@ -234,6 +265,9 @@ extern "C"
     TEGO_DEFINE_CALLBACK_SETTER(chat_request_response_received);
     TEGO_DEFINE_CALLBACK_SETTER(message_received);
     TEGO_DEFINE_CALLBACK_SETTER(message_acknowledged);
+    TEGO_DEFINE_CALLBACK_SETTER(attachment_request_received);
+    TEGO_DEFINE_CALLBACK_SETTER(attachment_request_acknowledged);
+    TEGO_DEFINE_CALLBACK_SETTER(attachment_progress);
     TEGO_DEFINE_CALLBACK_SETTER(user_status_changed);
     TEGO_DEFINE_CALLBACK_SETTER(new_identity_created);
 }

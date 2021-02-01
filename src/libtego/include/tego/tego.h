@@ -867,15 +867,17 @@ void tego_context_send_message(
  * @param user : the user to send a file to
  * @param filePath : utf8 path to file to send
  * @param filePathLength : length of filePath not including null-terminator
- * @param out_id : filled with assigned attachment id for callbacks
+ * @param out_id : optional, filled with assigned attachment id for callbacks
+ * @param out_fileHash : optional, filled with hash of the file to send
  * @param error : filled on error
  */
 void tego_context_send_attachement_request(
-    tego_context* context,
+    tego_context_t* context,
     tego_user_id_t const*  user,
     char const* filePath,
     size_t filePathLength,
     tego_attachment_id_t* out_id,
+    tego_file_hash_t** out_fileHash,
     tego_error_t** error);
 
 typedef enum
@@ -895,11 +897,23 @@ typedef enum
  * @param error : filled on error
  */
 void tego_context_acknowledge_attachment_request(
-    tego_context* context,
+    tego_context_t* context,
     tego_user_id_t const* user,
     tego_attachment_acknowledge_t response,
     char const* destPath,
     size_t destPathLength,
+    tego_error_t** error);
+
+/*
+ * Cancel an in-progress attachment transfer
+ *
+ * @param context : the current tego context
+ * @param id : the attachment transfer to cancel
+ * @param error: filled on error
+ */
+void tego_context_cancel_attachment_transfer(
+    tego_context_t* context,
+    tego_attachment_id_t id,
     tego_error_t** error);
 
 /*
@@ -1161,7 +1175,7 @@ typedef void (*tego_attachment_request_received_callback_t)(
  * @param attachmentId : the id of the attachment that is being acknowledged
  * @param acknowledgemnt : how the recipient acknowledged our request (accept or reject)
  */
-typedef void (*tego_attachement_request_acknowledged_callback_t)(
+typedef void (*tego_attachment_request_acknowledged_callback_t)(
     tego_context_t* context,
     const tego_user_id_t* receiver,
     tego_attachment_id_t attachmentId,
@@ -1274,17 +1288,17 @@ void tego_context_set_message_acknowledged_callback(
 void tego_context_set_attachment_request_received_callback(
     tego_context_t* context,
     tego_attachment_request_received_callback_t,
-    tego_error_t* error);
+    tego_error_t** error);
 
 void tego_context_set_attachement_request_acknowledged_callback(
     tego_context_t* context,
-    tego_attachement_request_acknowledged_callback_t,
-    tego_error_t* error);
+    tego_attachment_request_acknowledged_callback_t,
+    tego_error_t** error);
 
 void tego_context_set_attachment_progress_callback_t(
     tego_context_t* context,
     tego_attachment_progress_callback_t,
-    tego_error_t* error);
+    tego_error_t** error);
 
 void tego_context_set_user_status_changed_callback(
     tego_context_t* context,
