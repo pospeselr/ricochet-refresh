@@ -589,23 +589,20 @@ void tego_context::forget_user(const tego_user_id_t* user)
     contactUser->deleteContact();
 }
 
-void tego_context::send_attachment_request(
+std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> tego_context::send_attachment_request(
     tego_user_id_t const* user,
-    char const* filePath,
-    size_t filePathLength,
-    tego_attachment_id_t* out_id,
-    tego_file_hash_t** out_fileHash)
+    std::string const& filePath)
 {
-
+    TEGO_THROW_IF_NULL(user);
+    return {};
 }
 
 void tego_context::acknowledge_attachment_request(
     tego_user_id_t const* user,
     tego_attachment_acknowledge_t response,
-    char const* destPath,
-    size_t desPathLength)
+    std::string const& destPath)
 {
-
+    TEGO_THROW_IF_NULL(user);
 }
 
 void tego_context::cancel_attachment_transfer(
@@ -1040,12 +1037,23 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
-            context->send_attachment_request(
-                user,
-                filePath,
-                filePathLength,
-                out_id,
-                out_fileHash);
+            TEGO_THROW_IF_NULL(user);
+            TEGO_THROW_IF_NULL(filePath);
+            TEGO_THROW_IF_FALSE(filePathLength > 0);
+
+            auto [id, fileHash] =
+                context->send_attachment_request(
+                    user,
+                    std::string(filePath, filePathLength));
+
+            if (out_id != nullptr)
+            {
+                *out_id = id;
+            }
+            if (out_fileHash != nullptr)
+            {
+                *out_fileHash = fileHash.release();
+            }
         }, error);
     }
 
@@ -1060,11 +1068,14 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_NULL(user);
+            TEGO_THROW_IF_NULL(destPath);
+            TEGO_THROW_IF_FALSE(destPathLength > 0);
+
             context->acknowledge_attachment_request(
                 user,
                 response,
-                destPath,
-                destPathLength);
+                std::string(destPath, destPathLength));
         }, error);
     }
 

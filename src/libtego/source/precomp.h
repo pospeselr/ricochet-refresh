@@ -60,6 +60,7 @@ extern "C" {
 #include <set>
 #include <sstream>
 #include <optional>
+#include <tuple>
 
 // fmt
 #include <fmt/format.h>
