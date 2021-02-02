@@ -604,10 +604,35 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> tego_context
 
 void tego_context::acknowledge_attachment_request(
     tego_user_id_t const* user,
+    tego_attachment_id_t attachment,
     tego_attachment_acknowledge_t response,
     std::string const& destPath)
 {
+    // ensure we have a valid user
     TEGO_THROW_IF_NULL(user);
+    // ensure a valid response
+    TEGO_THROW_IF_FALSE(response == tego_attachment_acknowledge_accept ||
+                        response == tego_attachment_acknowledge_reject);
+    // ensure non-empty dest path in case we are accepting
+    TEGO_THROW_IF_TRUE(response == tego_attachment_acknowledge_accept && destPath.empty())
+
+    auto contactUser = this->getContactUser(user);
+    TEGO_THROW_IF_NULL(contactUser);
+    auto conversationModel = contactUser->conversation();
+
+    switch(response)
+    {
+        case tego_attachment_acknowledge_accept:
+        {
+            conversationModel->acceptFile(attachment, destPath);
+        }
+        break;
+        case tego_attachment_acknowledge_reject:
+        {
+            conversationModel->rejectFile(attachment);
+        }
+        break;
+    }
 }
 
 void tego_context::cancel_attachment_transfer(
@@ -1065,6 +1090,7 @@ extern "C"
     void tego_context_acknowledge_attachment_request(
         tego_context* context,
         tego_user_id_t const* user,
+        tego_attachment_id_t attachment,
         tego_attachment_acknowledge_t response,
         char const* destPath,
         size_t destPathLength,
@@ -1079,6 +1105,7 @@ extern "C"
 
             context->acknowledge_attachment_request(
                 user,
+                attachment,
                 response,
                 std::string(destPath, destPathLength));
         }, error);

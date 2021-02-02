@@ -891,6 +891,7 @@ typedef enum
  *
  * @param context : the current tego context
  * @param user : the user that sent the attachment request
+ * @param attachment : which attachment request to respond to
  * @param response : how to respond to the request
  * @param destPath : optional, destination to save the attachment
  * @param destPathLength : length of destPath not including the null-terminator
@@ -899,6 +900,7 @@ typedef enum
 void tego_context_acknowledge_attachment_request(
     tego_context_t* context,
     tego_user_id_t const* user,
+    tego_attachment_id_t attachment,
     tego_attachment_acknowledge_t response,
     char const* destPath,
     size_t destPathLength,

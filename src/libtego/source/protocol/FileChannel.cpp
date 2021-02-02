@@ -35,10 +35,12 @@
 #include "Connection.h"
 #include "utils/SecureRNG.h"
 #include "utils/Useful.h"
+
 #include "context.hpp"
 #include "error.hpp"
 #include "globals.hpp"
 #include "file_hash.hpp"
+using tego::g_globals;
 
 using namespace Protocol;
 
@@ -174,7 +176,7 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
             prf.name = message.has_name() ? message.name() : std::to_string(message.file_id());
             prf.sha3_512 = message.sha3_512();
 
-            pendingRecvFiles.push_back(prf);
+            pendingRecvFiles.push_back(std::move(prf));
         }
     }
 
@@ -353,7 +355,7 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message){
 bool FileChannel::sendFileWithId(QString file_uri,
                                  QString file_hash,
                                  QDateTime,
-                                 file_id_t id) 
+                                 file_id_t id)
 {
 
     if (direction() != Outbound) {

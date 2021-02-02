@@ -189,6 +189,17 @@ tego_message_id_t ConversationModel::sendMessage(const QString &text)
     return static_cast<tego_message_id_t>(message.identifier);
 }
 
+void ConversationModel::acceptFile(tego_attachment_id_t fileId, const std::string& dest)
+{
+
+}
+
+void ConversationModel::rejectFile(tego_attachment_id_t fileId)
+{
+
+}
+
+
 void ConversationModel::sendQueuedMessages()
 {
     if (!m_contact->connection())

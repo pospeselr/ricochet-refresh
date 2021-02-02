@@ -48,6 +48,7 @@ class FileChannel : public Channel
 public:
     typedef quint32 file_id_t;
     typedef quint32 chunk_id_t;
+    // 2 kilobytes
     constexpr static int FileMaxChunkSize = 2048;
 
     explicit FileChannel(Direction direction, Connection *connection);

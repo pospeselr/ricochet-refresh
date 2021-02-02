@@ -57,6 +57,7 @@ public:
         std::string const& filePath);
     void acknowledge_attachment_request(
         tego_user_id_t const* user,
+        tego_attachment_id_t attachment,
         tego_attachment_acknowledge_t response,
         std::string const& destPath);
     void cancel_attachment_transfer(
