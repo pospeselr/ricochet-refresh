@@ -52,7 +52,7 @@ public:
 
     explicit FileChannel(Direction direction, Connection *connection);
 
-    bool sendFileWithId(QString file_url, QDateTime time, file_id_t id);
+    bool sendFileWithId(QString file_url, QString file_hash, QDateTime time, file_id_t id);
 
 signals:
     void fileReceived(const QDateTime &time, file_id_t id);

@@ -594,7 +594,12 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> tego_context
     std::string const& filePath)
 {
     TEGO_THROW_IF_NULL(user);
-    return {};
+
+    auto contactUser = this->getContactUser(user);
+    TEGO_THROW_IF_NULL(contactUser);
+    auto conversationModel = contactUser->conversation();
+
+    return conversationModel->sendFile(QString::fromStdString(filePath));
 }
 
 void tego_context::acknowledge_attachment_request(
@@ -1109,6 +1114,7 @@ extern "C"
             auto id = context->send_message(user, std::string(message, messageLength));
             if (out_id != nullptr)
             {
+                logger::println("Sent message with id: {}", id);
                 *out_id = id;
             }
         }, error);

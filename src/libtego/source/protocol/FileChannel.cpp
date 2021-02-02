@@ -351,8 +351,11 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message){
 }
 
 bool FileChannel::sendFileWithId(QString file_uri,
+                                 QString file_hash,
                                  QDateTime,
-                                 file_id_t id) {
+                                 file_id_t id) 
+{
+
     if (direction() != Outbound) {
         BUG() << "Attempted to send outbound message on non outbound channel";
         return false;
@@ -365,8 +368,6 @@ bool FileChannel::sendFileWithId(QString file_uri,
 
     /* sendNextChunk will resume a transfer if connection was interrupted */
     if (sendNextChunk(id)) return true;
-
-    file_uri.remove(0, 7); //todo: remove this when file transfer UI is implemented, because proper file paths should be given
 
     /* only allow regular files or symlinks chains to regular files */
     QFileInfo fi(file_uri);
@@ -384,11 +385,6 @@ bool FileChannel::sendFileWithId(QString file_uri,
         qWarning() << "Failed to open file for sending header";
         return false;
     }
-
-    // calculate our file hash
-    tego_file_hash fileHash(file);
-    logger::println("sending file {} with hash: {}", file_path.toStdString(), fileHash.to_string());
-
     file.close();
 
     auto file_id = nextFileId();
@@ -406,7 +402,7 @@ bool FileChannel::sendFileWithId(QString file_uri,
     header->set_file_id(file_id);
     header->set_size(file_size);
     header->set_chunk_count(file_chunks);
-    header->set_sha3_512(fileHash.to_string());
+    header->set_sha3_512(file_hash.toStdString());
     header->set_name(fi.fileName().toStdString());
 
     Data::File::Packet packet;

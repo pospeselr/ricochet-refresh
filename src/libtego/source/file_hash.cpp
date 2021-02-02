@@ -112,6 +112,10 @@ extern "C"
 
             const auto& hashString = fileHash->to_string();
             std::copy(hashString.begin(), hashString.end(), out_hashString);
+			// null terminator
+            out_hashString[fileHash->string_size() - 1] = 0;
+
+            return fileHash->string_size();
         }, error, 0);
     }
 }

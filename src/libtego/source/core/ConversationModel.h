@@ -76,8 +76,7 @@ public:
     virtual int rowCount(const QModelIndex &parent = QModelIndex()) const;
     virtual QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
 
-public slots:
-    tego_message_id_t sendFile(const QString &file_url);
+    std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> sendFile(const QString &file_url);
     tego_message_id_t sendMessage(const QString &text);
     void clear();
 
@@ -99,6 +98,7 @@ private:
             File
         } type;
         QString text;
+        QString fileHash;
         QDateTime time;
         MessageId identifier;
         MessageStatus status;

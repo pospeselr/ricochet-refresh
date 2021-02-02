@@ -148,13 +148,48 @@ namespace shims
         // send message and save off the id associated with it
 
         tego_message_id_t messageId = 0;
-        tego_context_send_message(
-            context,
-            userId.get(),
-            utf8Str.data(),
-            utf8Str.size(),
-            &messageId,
-            tego::throw_on_error());
+		// todo: this just moves the file uri logic out of libtego and into the frontend
+		// remove this with real UX please
+        if (utf8Str.startsWith("file://"))
+        {
+            try
+            {
+                tego_attachment_id_t attachmentId;
+                std::unique_ptr<tego_file_hash_t> fileHash;
+                const auto path = utf8Str.mid(tego::static_strlen("file://"));
+                tego_context_send_attachement_request(
+                    context,
+                    userId.get(),
+                    path.data(),
+                    path.size(),
+                    &attachmentId,
+                    tego::out(fileHash),
+                    tego::throw_on_error());
+
+                size_t hashSize = tego_file_hash_string_size(fileHash.get(), tego::throw_on_error());
+                std::string hashString(hashSize, 0);
+                tego_file_hash_to_string(fileHash.get(), hashString.data(), hashSize, tego::throw_on_error());
+
+                logger::println("attempting tego_context_send_attachement_request: {{ path : '{}', hash : '{}', id : {} }}", path.toStdString(), hashString, attachmentId);
+
+                messageId = attachmentId;
+            }
+            catch(const std::runtime_error& err)
+            {
+                logger::println("Caught exception: {}", std::string(err.what()));
+                return;
+            }
+        }
+        else
+        {
+             tego_context_send_message(
+                context,
+                userId.get(),
+                utf8Str.data(),
+                utf8Str.size(),
+                &messageId,
+                tego::throw_on_error());
+        }
 
         // store data locally for UI
         MessageData md;

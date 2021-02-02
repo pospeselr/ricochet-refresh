@@ -30,6 +30,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "error.hpp"
+#include "file_hash.hpp"
 #include "globals.hpp"
 using tego::g_globals;
 
@@ -99,27 +101,49 @@ template<typename T> T *findOrCreateChannelForContact(ContactUser *contact, Prot
     if (!channel) {
         /* create a new channel */
         channel = new T(direction, contact->connection().data());
-        if (!channel->openChannel()) {
+        if (!channel->openChannel())
+        {
             delete channel;
-            channel = (T *)0;
+            channel = nullptr;
         }
     }
-
     return channel;
 }
 
-tego_message_id_t ConversationModel::sendFile(const QString &file_url) {
+
+std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> ConversationModel::sendFile(const QString &file_url)
+{
     MessageData message(file_url, QDateTime::currentDateTime(), lastMessageId++, Queued);
     message.type = ConversationModel::MessageData::Type::File;
 
-    if (m_contact->connection()) {
-        auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Outbound);
+    std::unique_ptr<tego_file_hash_t> fileHash;
 
-        if (channel && channel->isOpened()) {
-            if (channel->sendFileWithId(file_url, QDateTime(), message.identifier))
+    // calculate our file hash
+    if(std::ifstream file(file_url.toStdString(), std::ios::in | std::ios::binary); file.is_open())
+    {
+        fileHash = std::make_unique<tego_file_hash_t>(file);
+
+        message.fileHash = QString::fromStdString(fileHash->to_string());
+        logger::println("Prepping to send file '{}' with hash: {}", file_url, fileHash->to_string());
+    }
+    else
+    {
+        TEGO_THROW_MSG("Could not open file {}", file_url);
+    }
+
+    if (m_contact->connection())
+    {
+        auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Outbound);
+        if (channel && channel->isOpened())
+        {
+            if (channel->sendFileWithId(message.text, message.fileHash, QDateTime(), message.identifier))
+            {
                 message.status = Sending;
+            }
             else
+            {
                 message.status = Error;
+            }
             message.attemptCount++;
         }
     }
@@ -129,7 +153,7 @@ tego_message_id_t ConversationModel::sendFile(const QString &file_url) {
     endInsertRows();
     prune();
 
-    return static_cast<tego_message_id_t>(message.identifier);
+    return {message.identifier, std::move(fileHash)};
 }
 
 tego_message_id_t ConversationModel::sendMessage(const QString &text)
@@ -137,24 +161,22 @@ tego_message_id_t ConversationModel::sendMessage(const QString &text)
     if (text.isEmpty())
         return 0;
 
-    /* XXX: this is just to test file transfer, we can write a nice and pretty
-     * UI later. Format for files is like one would use in a browser, i.e.:
-     * file:///home/username/file.txt */
-    if (text.startsWith(QString::fromLatin1("file://"))) {
-        return sendFile(text);
-    }
-
     MessageData message(text, QDateTime::currentDateTime(), lastMessageId++, Queued);
     message.type = ConversationModel::MessageData::Type::Message;
 
-    if (m_contact->connection()) {
+    if (m_contact->connection())
+    {
         auto channel = findOrCreateChannelForContact<Protocol::ChatChannel>(m_contact, Protocol::Channel::Outbound);
-
-        if (channel && channel->isOpened()) {
+        if (channel && channel->isOpened())
+        {
             if (channel->sendChatMessageWithId(text, QDateTime(), message.identifier))
+            {
                 message.status = Sending;
+            }
             else
+            {
                 message.status = Error;
+            }
             message.attemptCount++;
         }
     }
@@ -172,36 +194,34 @@ void ConversationModel::sendQueuedMessages()
     if (!m_contact->connection())
         return;
 
-    // Quickly scan to see if we have any queued messages
-    bool haveQueued = false;
-    foreach (const MessageData &data, messages) {
-        if (data.status == Queued) {
-            haveQueued = true;
-            break;
-        }
-    }
-
-    if (!haveQueued)
-        return;
-
     auto chat_channel = findOrCreateChannelForContact<Protocol::ChatChannel>(m_contact, Protocol::Channel::Outbound);
     auto file_channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Outbound);
 
     // sendQueuedMessages is called at channelOpened
-    if (!chat_channel->isOpened()) return;
-    if (!file_channel->isOpened()) return;
 
     // Iterate backwards, from oldest to newest messages
-    for (int i = messages.size() - 1; i >= 0; i--) {
-        if (messages[i].status == Queued) {
+    for (int i = messages.size() - 1; i >= 0; i--)
+    {
+        auto& m = messages[i];
+        if (m.status == Queued) {
             qDebug() << "Sending queued chat message";
-            bool ok = false;
-            switch (messages[i].type) {
+            bool attempted = false;
+            switch (m.type)
+            {
                 case ConversationModel::MessageData::Type::Message:
-                    ok = chat_channel->sendChatMessageWithId(messages[i].text, messages[i].time, messages[i].identifier);
+                    if (chat_channel->isOpened())
+                    {
+                        m.status = chat_channel->sendChatMessageWithId(m.text, m.time, m.identifier) ? Sending : Error;
+                        attempted = true;
+                    }
                     break;
                 case ConversationModel::MessageData::Type::File:
-                    ok = file_channel->sendFileWithId(messages[i].text, messages[i].time, messages[i].identifier);
+                    if (file_channel->isOpened())
+                    {
+                        logger::println("Attempted to send queued file: {}", m.text);
+                        m.status = file_channel->sendFileWithId(m.text, m.fileHash, m.time, m.identifier) ? Sending : Error;
+                        attempted = true;
+                    }
                     break;
                 default:
                     /* XXX: Should this be BUG()? */
@@ -209,12 +229,11 @@ void ConversationModel::sendQueuedMessages()
                     break;
             };
 
-            if (ok)
-                messages[i].status = Sending;
-            else
-                messages[i].status = Error;
-            messages[i].attemptCount++;
-            emit dataChanged(index(i, 0), index(i, 0));
+            if (attempted)
+            {
+                m.attemptCount++;
+                emit dataChanged(index(i, 0), index(i, 0));
+            }
         }
     }
 }
