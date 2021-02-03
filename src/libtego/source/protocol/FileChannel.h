@@ -36,6 +36,7 @@
 #include "protocol/Channel.h"
 #include "protocol/FileChannel.pb.h"
 #include "tego/tego.h"
+#include "file_hash.hpp"
 
 namespace Protocol
 {
@@ -54,8 +55,11 @@ public:
     explicit FileChannel(Direction direction, Connection *connection);
 
     bool sendFileWithId(QString file_url, QString file_hash, QDateTime time, file_id_t id);
+    void acceptFile(tego_attachment_id_t fileId, const std::string& dest);
+    void rejectFile(tego_attachment_id_t fileId);
 
 signals:
+    void fileRequestReceived(file_id_t id, QString fileName, tego_file_hash_t);
     void fileReceived(const QDateTime &time, file_id_t id);
     void fileAcknowledged(file_id_t id, tego_bool_t accepted);
 

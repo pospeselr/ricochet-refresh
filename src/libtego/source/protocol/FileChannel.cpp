@@ -176,10 +176,19 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
             prf.name = message.has_name() ? message.name() : std::to_string(message.file_id());
             prf.sha3_512 = message.sha3_512();
 
+            // TODO: change the protocol to send a byte buffer of the exact size
+            TEGO_THROW_IF_FALSE_MSG(prf.sha3_512.size() == (tego_file_hash::STRING_SIZE - 1));
+            tego_file_hash fileHash;
+            fileHash.hex = prf.sha3_512;
+
+            emit this->fileRequestReceived(prf.id, QString::fromStdString(prf.path), std::move(fileHash));
+
+            // if rejected the prf should be removed from this list
             pendingRecvFiles.push_back(std::move(prf));
         }
     }
 
+    // move this to an 'accept attachment' function
     if (message.has_file_id()) {
         Data::File::Packet packet;
         response->set_file_id(message.file_id());
@@ -414,6 +423,16 @@ bool FileChannel::sendFileWithId(QString file_uri,
 
     /* the first chunk will get sent after the first header ack */
     return true;
+}
+
+void FileChannel::acceptFile(tego_attachment_id_t fileId, const std::string& dest)
+{
+
+}
+
+void FileChannel::rejectFile(tego_attachment_id_t fileId)
+{
+
 }
 
 bool FileChannel::sendNextChunk(file_id_t id) {

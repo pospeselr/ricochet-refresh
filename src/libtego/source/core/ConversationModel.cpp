@@ -64,13 +64,28 @@ void ConversationModel::setContact(ContactUser *contact)
     m_contact = contact;
     if (m_contact) {
         auto connectChannel = [this](Protocol::Channel *channel) {
-            if (Protocol::ChatChannel *chat = qobject_cast<Protocol::ChatChannel*>(channel)) {
+            if (Protocol::ChatChannel *chat = qobject_cast<Protocol::ChatChannel*>(channel))
+            {
                 connect(chat, &Protocol::ChatChannel::messageReceived, this, &ConversationModel::messageReceived);
                 connect(chat, &Protocol::ChatChannel::messageAcknowledged, this, &ConversationModel::messageAcknowledged);
 
-                if (chat->direction() == Protocol::Channel::Outbound) {
+                if (chat->direction() == Protocol::Channel::Outbound)
+                {
                     connect(chat, &Protocol::Channel::invalidated, this, &ConversationModel::outboundChannelClosed);
                     sendQueuedMessages();
+                }
+            }
+            if (auto fc = qobject_cast<Protocol::FileChannel*>(channel); fc != nullptr)
+            {
+                if (fc->direction() == Protocol::Channel::Inbound)
+                {
+                    connect(
+                        fc,
+                        &Protocol::FileChannel::fileRequestReceived,
+                        [](tego_attachment_id_t id, const QString& filename, tego_file_hash_t hash) -> void
+                        {
+                            logger::println("File Request Received, id : {}, filename : {}, hash : {}", id, filename, hash.to_string());
+                        });
                 }
             }
         };
@@ -78,7 +93,7 @@ void ConversationModel::setContact(ContactUser *contact)
         auto connectConnection = [this,connectChannel]() {
             if (m_contact->connection()) {
                 connect(m_contact->connection().data(), &Protocol::Connection::channelOpened, this, connectChannel);
-                foreach (auto channel, m_contact->connection()->findChannels<Protocol::ChatChannel>())
+                foreach (auto channel, m_contact->connection()->findChannels<Protocol::Channel>())
                     connectChannel(channel);
                 sendQueuedMessages();
             }
@@ -191,7 +206,12 @@ tego_message_id_t ConversationModel::sendMessage(const QString &text)
 
 void ConversationModel::acceptFile(tego_attachment_id_t fileId, const std::string& dest)
 {
+    TEGO_THROW_IF_FALSE(m_contact->connection());
+    auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Inbound);
+    TEGO_THROW_IF_NULL(channel);
+    TEGO_THROW_IF_FALSE(channel->isOpened());
 
+    channel->acceptFile(fileId, dest);
 }
 
 void ConversationModel::rejectFile(tego_attachment_id_t fileId)
