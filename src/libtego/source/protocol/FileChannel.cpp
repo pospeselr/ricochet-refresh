@@ -60,7 +60,7 @@ size_t FileChannel::fsize_to_chunks(size_t sz)
 }
 
 bool FileChannel::allowInboundChannelRequest(
-    __attribute__((unused)) const Data::Control::OpenChannel *request,
+    const Data::Control::OpenChannel*,
     Data::Control::ChannelResult *result)
 {
     if (connection()->purpose() != Connection::Purpose::KnownContact) {
@@ -78,7 +78,7 @@ bool FileChannel::allowInboundChannelRequest(
 }
 
 bool FileChannel::allowOutboundChannelRequest(
-    __attribute__((unused)) Data::Control::OpenChannel *request)
+    Data::Control::OpenChannel*)
 {
     if (connection()->findChannel<FileChannel>(Channel::Outbound)) {
         BUG() << "Rejecting outbound request for" << type() << "channel because one is already open on this connection";
@@ -425,6 +425,14 @@ void FileChannel::acceptFile(tego_attachment_id_t fileId, const std::string& des
         [=](auto& prf) -> bool { return prf.id == fileId; });
 
     TEGO_THROW_IF_FALSE(it != pendingRecvFiles.end());
+
+    // attempt to open the destinatin for writing
+    std::fstream destFile(dest, std::ios::out | std::ios::binary);
+    TEGO_THROW_IF_FALSE(destFile.is_open());
+    destFile.close();
+
+    // todo: we need to rework the path and name logic of pendingRecvFile
+    it->name = dest;
 
     auto response = std::make_unique<Data::File::FileHeaderAck>();
     response->set_accepted(true);
