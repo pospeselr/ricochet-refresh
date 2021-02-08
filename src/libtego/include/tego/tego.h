@@ -807,7 +807,7 @@ void tego_context_get_tor_bootstrap_status(
 typedef uint64_t tego_time_t;
 // unique (per user) message identifier
 typedef uint64_t tego_message_id_t;
-// unique (per user) attachement identifier
+// unique (per user) attachment identifier
 typedef uint64_t tego_attachment_id_t;
 // struct for file hash
 typedef struct tego_file_hash tego_file_hash_t;
@@ -871,7 +871,7 @@ void tego_context_send_message(
  * @param out_fileHash : optional, filled with hash of the file to send
  * @param error : filled on error
  */
-void tego_context_send_attachement_request(
+void tego_context_send_attachment_request(
     tego_context_t* context,
     tego_user_id_t const*  user,
     char const* filePath,
@@ -1150,7 +1150,7 @@ typedef void (*tego_message_acknowledged_callback_t)(
 
 
 /*
- * Callback fired when a user wants to send recipient an attachement
+ * Callback fired when a user wants to send recipient an attachment
  *
  * @param context : the current tego context
  * @param sender : the user sending the request
@@ -1179,7 +1179,7 @@ typedef void (*tego_attachment_request_received_callback_t)(
  */
 typedef void (*tego_attachment_request_acknowledged_callback_t)(
     tego_context_t* context,
-    const tego_user_id_t* receiver,
+    tego_user_id_t const* receiver,
     tego_attachment_id_t attachmentId,
     tego_attachment_acknowledge_t acknowledgement);
 
@@ -1292,12 +1292,12 @@ void tego_context_set_attachment_request_received_callback(
     tego_attachment_request_received_callback_t,
     tego_error_t** error);
 
-void tego_context_set_attachement_request_acknowledged_callback(
+void tego_context_set_attachment_request_acknowledged_callback(
     tego_context_t* context,
     tego_attachment_request_acknowledged_callback_t,
     tego_error_t** error);
 
-void tego_context_set_attachment_progress_callback_t(
+void tego_context_set_attachment_progress_callback(
     tego_context_t* context,
     tego_attachment_progress_callback_t,
     tego_error_t** error);

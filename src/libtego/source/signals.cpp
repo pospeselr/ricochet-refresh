@@ -124,13 +124,13 @@ namespace tego
     void callback_registry::cleanup_attachment_request_received_args(
         tego_user_id_t* user,
         tego_attachment_id_t,
-        char* filename,
+        char* fileName,
         size_t,
         uint64_t,
         tego_file_hash_t* fileHash)
     {
         delete user;
-        delete[] filename;
+        delete[] fileName;
         delete fileHash;
     }
 

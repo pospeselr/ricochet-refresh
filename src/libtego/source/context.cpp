@@ -1055,7 +1055,7 @@ extern "C"
         }, error);
     }
 
-    void tego_context_send_attachement_request(
+    void tego_context_send_attachment_request(
         tego_context* context,
         tego_user_id_t const*  user,
         char const* filePath,

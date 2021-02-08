@@ -361,6 +361,57 @@ namespace
         });
     }
 
+    void on_attachment_request_received(
+        tego_context_t* context,
+        tego_user_id_t const* sender,
+        tego_attachment_id_t attachmentId,
+        char const* attachmentName,
+        size_t attachmentNameLength,
+        uint64_t attachmentSize,
+        tego_file_hash_t const* fileHash)
+    {
+
+        auto hashSize = tego_file_hash_string_size(fileHash, tego::throw_on_error());
+        std::string hashStr(hashSize, (char)0);
+        auto written = tego_file_hash_to_string(fileHash, hashStr.data(), hashStr.size(), tego::throw_on_error());
+
+        logger::println(
+            "Received attachment request {{ attachmentId : {}, attachmentName : {}, attachmentSize : {}, attachmentHash : {} }}",
+            attachmentId,
+            attachmentName,
+            attachmentSize,
+            hashStr);
+
+        // for now just accept
+        tego_context_acknowledge_attachment_request(
+            context,
+            sender,
+            attachmentId,
+            tego_attachment_acknowledge_accept,
+            attachmentName,
+            attachmentNameLength,
+            tego::throw_on_error());
+    }
+
+    void on_attachment_request_acknowledged(
+        tego_context_t* context,
+        tego_user_id_t const* receiver,
+        tego_attachment_id_t attachmentId,
+        tego_attachment_acknowledge_t acknowledgement)
+    {
+        logger::trace();
+    }
+
+    void on_attachment_progress(
+        tego_context_t* context,
+        const tego_user_id_t* userId,
+        tego_attachment_id_t attachmentId,
+        uint64_t bytesComplete,
+        uint64_t bytesTotal)
+    {
+        logger::trace();
+    }
+
     void on_new_identity_created(
         tego_context_t*,
         const tego_ed25519_private_key_t* privateKey)
@@ -440,6 +491,21 @@ void init_libtego_callbacks(tego_context_t* context)
     tego_context_set_chat_request_response_received_callback(
         context,
         &on_chat_request_response_received,
+        tego::throw_on_error());
+
+    tego_context_set_attachment_request_received_callback(
+        context,
+        &on_attachment_request_received,
+        tego::throw_on_error());
+
+    tego_context_set_attachment_request_acknowledged_callback(
+        context,
+        &on_attachment_request_acknowledged,
+        tego::throw_on_error());
+
+    tego_context_set_attachment_progress_callback(
+        context,
+        &on_attachment_progress,
         tego::throw_on_error());
 
     tego_context_set_user_status_changed_callback(

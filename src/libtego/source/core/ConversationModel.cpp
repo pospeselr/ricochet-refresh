@@ -82,9 +82,30 @@ void ConversationModel::setContact(ContactUser *contact)
                     connect(
                         fc,
                         &Protocol::FileChannel::fileRequestReceived,
-                        [](tego_attachment_id_t id, const QString& filename, tego_file_hash_t hash) -> void
+                        [this](tego_attachment_id_t id, const QString& filename, size_t fileSize, tego_file_hash_t hash) -> void
                         {
+                            // user id
+                            auto userId = this->contact()->toTegoUserId();
+
+                            // filename
+                            auto utf8Filename = filename.toUtf8();
+                            const auto rawFilenameLength = utf8Filename.size();
+                            const auto rawFilenameSize = rawFilenameLength + 1; // for null terminator
+                            auto rawFilename = std::make_unique<char[]>(rawFilenameSize);
+                            std::copy(utf8Filename.begin(), utf8Filename.end(), rawFilename.get());
+                            rawFilename[rawFilenameLength] = 0;
+
+                            // filehash
+                            auto heapHash = std::make_unique<tego_file_hash_t>(hash);
+
                             logger::println("File Request Received, id : {}, filename : {}, hash : {}", id, filename, hash.to_string());
+                            g_globals.context->callback_registry_.emit_attachment_request_received(
+                                userId.release(),
+                                id,
+                                rawFilename.release(),
+                                rawFilenameLength,
+                                fileSize,
+                                heapHash.release());
                         });
                 }
             }
@@ -216,7 +237,12 @@ void ConversationModel::acceptFile(tego_attachment_id_t fileId, const std::strin
 
 void ConversationModel::rejectFile(tego_attachment_id_t fileId)
 {
+    TEGO_THROW_IF_FALSE(m_contact->connection());
+    auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Inbound);
+    TEGO_THROW_IF_NULL(channel);
+    TEGO_THROW_IF_FALSE(channel->isOpened());
 
+    channel->rejectFile(fileId);
 }
 
 

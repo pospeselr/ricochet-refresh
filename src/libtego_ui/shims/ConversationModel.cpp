@@ -149,7 +149,7 @@ namespace shims
 
         tego_message_id_t messageId = 0;
 		// todo: this just moves the file uri logic out of libtego and into the frontend
-		// remove this with real UX please
+		// replace this with real UX please
         if (utf8Str.startsWith("file://"))
         {
             try
@@ -157,7 +157,7 @@ namespace shims
                 tego_attachment_id_t attachmentId;
                 std::unique_ptr<tego_file_hash_t> fileHash;
                 const auto path = utf8Str.mid(tego::static_strlen("file://"));
-                tego_context_send_attachement_request(
+                tego_context_send_attachment_request(
                     context,
                     userId.get(),
                     path.data(),

@@ -6,10 +6,10 @@
 #define TEGO_THROW_MSG(FMT, ...) throw std::runtime_error(fmt::format("runtime error " __FILE__ ":" TEGO_STRINGIFY(__LINE__) " " FMT __VA_OPT__(,) __VA_ARGS__));
 
 #define TEGO_THROW_IF_FALSE_MSG(B, ...) if (!(B)) { TEGO_THROW_MSG(__VA_ARGS__); }
-#define TEGO_THROW_IF_FALSE(B) TEGO_THROW_IF_FALSE_MSG(B, "{} must be false", TEGO_STRINGIFY(B))
+#define TEGO_THROW_IF_FALSE(B) TEGO_THROW_IF_FALSE_MSG(B, "{} must be true", TEGO_STRINGIFY(B))
 
 #define TEGO_THROW_IF_TRUE_MSG(B, ...) if (B) { TEGO_THROW_MSG("{}", __VA_ARGS__); }
-#define TEGO_THROW_IF_TRUE(B) TEGO_THROW_IF_TRUE_MSG(B, "{} must be true", TEGO_STRINGIFY(B))
+#define TEGO_THROW_IF_TRUE(B) TEGO_THROW_IF_TRUE_MSG(B, "{} must be false", TEGO_STRINGIFY(B))
 
 #define TEGO_THROW_IF_NULL(PTR) TEGO_THROW_IF_FALSE_MSG((PTR != nullptr), "{} must not be null", TEGO_STRINGIFY(PTR))
 #define TEGO_THROW_IF_NOT_NULL(PTR) TEGO_THROW_IF_FALSE_MSG((PTR == nullptr), "{} must be null", TEGO_STRINGIFY(PTR))

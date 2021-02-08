@@ -181,19 +181,11 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
             tego_file_hash fileHash;
             fileHash.hex = prf.sha3_512;
 
-            emit this->fileRequestReceived(prf.id, QString::fromStdString(prf.path), std::move(fileHash));
+            emit this->fileRequestReceived(prf.id, QString::fromStdString(prf.name), prf.size, std::move(fileHash));
 
             // if rejected the prf should be removed from this list
             pendingRecvFiles.push_back(std::move(prf));
         }
-    }
-
-    // move this to an 'accept attachment' function
-    if (message.has_file_id()) {
-        Data::File::Packet packet;
-        response->set_file_id(message.file_id());
-        packet.set_allocated_file_header_ack(response);
-        Channel::sendMessage(packet);
     }
 }
 
@@ -427,12 +419,41 @@ bool FileChannel::sendFileWithId(QString file_uri,
 
 void FileChannel::acceptFile(tego_attachment_id_t fileId, const std::string& dest)
 {
+    auto it = std::find_if(
+        pendingRecvFiles.begin(),
+        pendingRecvFiles.end(),
+        [=](auto& prf) -> bool { return prf.id == fileId; });
 
+    TEGO_THROW_IF_FALSE(it != pendingRecvFiles.end());
+
+    auto response = std::make_unique<Data::File::FileHeaderAck>();
+    response->set_accepted(true);
+    response->set_file_id(fileId);
+
+    Data::File::Packet packet;
+    packet.set_allocated_file_header_ack(response.release());
+    Channel::sendMessage(packet);
 }
 
 void FileChannel::rejectFile(tego_attachment_id_t fileId)
 {
+    auto it = std::find_if(
+        pendingRecvFiles.begin(),
+        pendingRecvFiles.end(),
+        [=](auto& prf) -> bool { return prf.id == fileId; });
 
+    TEGO_THROW_IF_FALSE(it != pendingRecvFiles.end());
+
+    // remove the pendingRecvFile from our list on reject
+    pendingRecvFiles.erase(it);
+
+    auto response = std::make_unique<Data::File::FileHeaderAck>();
+    response->set_accepted(false);
+    response->set_file_id(fileId);
+
+    Data::File::Packet packet;
+    packet.set_allocated_file_header_ack(response.release());
+    Channel::sendMessage(packet);
 }
 
 bool FileChannel::sendNextChunk(file_id_t id) {

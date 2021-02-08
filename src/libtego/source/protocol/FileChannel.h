@@ -59,7 +59,7 @@ public:
     void rejectFile(tego_attachment_id_t fileId);
 
 signals:
-    void fileRequestReceived(file_id_t id, QString fileName, tego_file_hash_t);
+    void fileRequestReceived(file_id_t id, QString fileName, size_t fileSize, tego_file_hash_t);
     void fileReceived(const QDateTime &time, file_id_t id);
     void fileAcknowledged(file_id_t id, tego_bool_t accepted);
 
