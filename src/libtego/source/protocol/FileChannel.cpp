@@ -49,11 +49,6 @@ FileChannel::FileChannel(Direction direction, Connection *connection)
 {
 }
 
-FileChannel::file_id_t FileChannel::nextFileId()
-{
-    return ++file_id;
-}
-
 size_t FileChannel::fsize_to_chunks(size_t sz)
 {
     return (sz + (FileMaxChunkSize - 1)) / FileMaxChunkSize;
@@ -159,7 +154,7 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
         logger::println("Creating temp directory: {}", dirname);
         QDir dir;
         if (!dir.mkdir(dirname)) {
-            qWarning() << "Could not create tmp directory";
+            qWarning() << "Could not create tmp directory" << dirname ;
             response->set_accepted(false);
         }
 
@@ -239,6 +234,7 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
     if (message.has_chunk_id()) {
         Data::File::Packet packet;
         response->set_file_chunk_id(message.chunk_id());
+        response->set_file_id(message.file_id());
         packet.set_allocated_file_chunk_ack(response);
         Channel::sendMessage(packet);
     }
@@ -298,33 +294,41 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
     }
 }
 
-void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message){
+void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
+{
     auto it =
         std::find_if(queuedFiles.begin(),
         queuedFiles.end(),
-        [message](const queuedFile &qf) { return qf.cur_chunk == message.file_chunk_id(); });
+        [&](const queuedFile &qf)
+        {
+			// find our queued file
+            return (qf.id == message.file_id()) &&
+                   (qf.cur_chunk == message.file_chunk_id());
+        });
 
     if (it == queuedFiles.end()) {
         qWarning() << "recieved ack for a chunk we never sent";
         return;
     }
 
-    if (it->cur_chunk * FileMaxChunkSize > it->size) {
-        it->finished = true;
+    // increment chunk index for sendChunkWithId
+    if(message.accepted())
+    {
+        it->cur_chunk++;
     }
 
-    if (it->finished) {
-        auto index = std::distance(queuedFiles.begin(), it);
-        queuedFiles.erase(queuedFiles.begin() + index);
+    const auto offset = it->cur_chunk * FileMaxChunkSize;
+    if (offset >= it->size) {
+        it->finished = true;
+        queuedFiles.erase(it);
         return;
     }
 
-    //todo: don't infinitely resend a chunk if it infinitely gets declined
-    if (message.accepted()) it->cur_chunk++;
     sendChunkWithId(it->id, it->path, it->cur_chunk);
 }
 
-void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message){
+void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
+{
     if (direction() != Outbound) {
         qWarning() << "Rejected inbound message on inbound file channel";
         return;
@@ -342,6 +346,7 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message){
 
     auto index = std::distance(pendingFileHeaders.begin(), it);
 
+
     /* start the transfer at chunk 0 */
     if (message.accepted()) {
         //todo: message_acknowledged signal/callback needs to go here, before the call to sendChunkWithId
@@ -356,9 +361,8 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message){
 bool FileChannel::sendFileWithId(QString file_uri,
                                  QString file_hash,
                                  QDateTime,
-                                 file_id_t id)
+                                 file_id_t file_id)
 {
-
     if (direction() != Outbound) {
         BUG() << "Attempted to send outbound message on non outbound channel";
         return false;
@@ -370,7 +374,7 @@ bool FileChannel::sendFileWithId(QString file_uri,
     }
 
     /* sendNextChunk will resume a transfer if connection was interrupted */
-    if (sendNextChunk(id)) return true;
+    if (sendNextChunk(file_id)) return true;
 
     /* only allow regular files or symlinks chains to regular files */
     QFileInfo fi(file_uri);
@@ -389,8 +393,6 @@ bool FileChannel::sendFileWithId(QString file_uri,
         return false;
     }
     file.close();
-
-    auto file_id = nextFileId();
 
     queuedFile qf;
     qf.id = file_id;
@@ -478,29 +480,36 @@ bool FileChannel::sendNextChunk(file_id_t id) {
     return sendChunkWithId(id, it->path, it->cur_chunk++);
 }
 
-bool FileChannel::sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t cid) {
+bool FileChannel::sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t cid)
+{
     if (direction() != Outbound) {
         BUG() << "Attempted to send outbound message on non outbound channel";
         return false;
     }
 
     std::ifstream file(fpath, std::ios::in | std::ios::binary);
-    if (!file) {
+    if (!file)
+    {
         qWarning() << "Failed to open file for sending chunk";
         return false;
     }
 
     QFileInfo fi(QString::fromStdString(fpath));
-    auto file_size = fi.size();
+    const qint64 file_size = fi.size();
+    const qint64 offset = cid * FileMaxChunkSize;
 
-    if (cid * FileMaxChunkSize > file_size) {
+    TEGO_THROW_IF_FALSE(file_size >= 0 && offset >= 0);
+
+    if (offset >= file_size)
+    {
         qWarning() << "Attempted to start read beyond eof";
         return false;
     }
 
     /* go to the pos of the chunk */
-    file.seekg(cid * FileMaxChunkSize);
-    if (!file) {
+    file.seekg(offset);
+    if (!file)
+    {
         qWarning() << "Failed to seek to last position in file for chunking";
         return false;
     }
@@ -521,7 +530,7 @@ bool FileChannel::sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t 
     logger::println("Sending file:chunk {}:{} with hash: {}", fid, cid, chunkHash.to_string());
 
     /* send this chunk */
-    Data::File::FileChunk *chunk = new Data::File::FileChunk;
+    auto chunk = std::make_unique<Data::File::FileChunk>();
     chunk->set_sha3_512(chunkHash.to_string());
     chunk->set_file_id(fid);
     chunk->set_chunk_id(cid);
@@ -529,9 +538,10 @@ bool FileChannel::sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t 
     chunk->set_chunk_data(buf.get(), bytes_read);
     //TODO chunk.set_time_delta();
     Data::File::Packet packet;
-    packet.set_allocated_file_chunk(chunk);
+    packet.set_allocated_file_chunk(chunk.release());
     file.close();
 
     Channel::sendMessage(packet);
+    emit this->fileTransferProgress(fid, offset + bytes_read, file_size);
     return true;
 }

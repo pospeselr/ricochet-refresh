@@ -64,7 +64,8 @@ message FileChunk {
 
 message FileChunkAck {
     optional uint64 file_chunk_id = 1;
-    optional bool accepted = 2 [default = false];
+    optional uint64 file_id = 2;
+    optional bool accepted = 3 [default = false];
 }
 
 message FileHeaderAck {

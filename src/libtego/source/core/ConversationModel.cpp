@@ -108,6 +108,14 @@ void ConversationModel::setContact(ContactUser *contact)
                                 heapHash.release());
                         });
                 }
+
+                connect(
+                    fc,
+                    &Protocol::FileChannel::fileTransferProgress,
+                    [this](tego_attachment_id_t id, uint64_t bytesTransmitted, uint64_t bytesTotal) -> void
+                    {
+                        logger::println("File Progress : {{ id : {}, transmitted : {}, total : {} }}", id, bytesTransmitted, bytesTotal);
+                    });
             }
         };
 
@@ -160,7 +168,7 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> Conversation
         fileHash = std::make_unique<tego_file_hash_t>(file);
 
         message.fileHash = QString::fromStdString(fileHash->to_string());
-        logger::println("Prepping to send file '{}' with hash: {}", file_url, fileHash->to_string());
+        logger::println("Prepping to send file '{}' with hash: {}, id : {}", file_url, fileHash->to_string(), message.identifier);
     }
     else
     {

@@ -49,8 +49,8 @@ class FileChannel : public Channel
 public:
     typedef quint32 file_id_t;
     typedef quint32 chunk_id_t;
-    // 2 kilobytes
-    constexpr static int FileMaxChunkSize = 2048;
+    // 63 kb, max packet size is UINT16_MAX (ak 65535, 64k - 1) so leave space for other data
+    constexpr static qint64 FileMaxChunkSize = 63*1024;
 
     explicit FileChannel(Direction direction, Connection *connection);
 
@@ -62,31 +62,30 @@ signals:
     void fileRequestReceived(file_id_t id, QString fileName, size_t fileSize, tego_file_hash_t);
     void fileReceived(const QDateTime &time, file_id_t id);
     void fileAcknowledged(file_id_t id, tego_bool_t accepted);
+    void fileTransferProgress(file_id_t id, uint64_t bytesTransmitted, uint64_t bytesTotal);
 
 protected:
     virtual bool allowInboundChannelRequest(const Data::Control::OpenChannel *request, Data::Control::ChannelResult *result);
     virtual bool allowOutboundChannelRequest(Data::Control::OpenChannel *request);
     virtual void receivePacket(const QByteArray &packet);
 private:
-    file_id_t nextFileId();
-    file_id_t file_id;
     size_t fsize_to_chunks(size_t sz);
 
     struct queuedFile {
-        file_id_t id;
+        file_id_t id = 0;
         std::string path;
-        size_t size;
-        chunk_id_t cur_chunk;
-        bool finished;
-        bool peer_did_accept;
+        qint64 size = 0;
+        chunk_id_t cur_chunk = 0;
+        bool finished = false;
+        bool peer_did_accept = false;
     };
 
     struct pendingRecvFile {
-        file_id_t id;
-        size_t size;
-        chunk_id_t cur_chunk;
-        chunk_id_t n_chunks;
-        chunk_id_t missing_chunks;
+        file_id_t id = 0;
+        size_t size = 0;
+        chunk_id_t cur_chunk = 0;
+        chunk_id_t n_chunks = 0;
+        chunk_id_t missing_chunks = 0;
         std::string path;
         std::string sha3_512;
         std::string name;
