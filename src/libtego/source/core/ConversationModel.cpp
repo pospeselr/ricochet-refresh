@@ -77,44 +77,47 @@ void ConversationModel::setContact(ContactUser *contact)
             }
             if (auto fc = qobject_cast<Protocol::FileChannel*>(channel); fc != nullptr)
             {
-                if (fc->direction() == Protocol::Channel::Inbound)
-                {
-                    connect(
-                        fc,
-                        &Protocol::FileChannel::fileRequestReceived,
-                        [this](tego_attachment_id_t id, const QString& filename, size_t fileSize, tego_file_hash_t hash) -> void
-                        {
-                            // user id
-                            auto userId = this->contact()->toTegoUserId();
+                connect(
+                    fc,
+                    &Protocol::FileChannel::fileRequestReceived,
+                    [this](tego_attachment_id_t id, const QString& filename, size_t fileSize, tego_file_hash_t hash) -> void
+                    {
+                        // user id
+                        auto userId = this->contact()->toTegoUserId();
 
-                            // filename
-                            auto utf8Filename = filename.toUtf8();
-                            const auto rawFilenameLength = utf8Filename.size();
-                            const auto rawFilenameSize = rawFilenameLength + 1; // for null terminator
-                            auto rawFilename = std::make_unique<char[]>(rawFilenameSize);
-                            std::copy(utf8Filename.begin(), utf8Filename.end(), rawFilename.get());
-                            rawFilename[rawFilenameLength] = 0;
+                        // filename
+                        auto utf8Filename = filename.toUtf8();
+                        const auto rawFilenameLength = utf8Filename.size();
+                        const auto rawFilenameSize = rawFilenameLength + 1; // for null terminator
+                        auto rawFilename = std::make_unique<char[]>(rawFilenameSize);
+                        std::copy(utf8Filename.begin(), utf8Filename.end(), rawFilename.get());
+                        rawFilename[rawFilenameLength] = 0;
 
-                            // filehash
-                            auto heapHash = std::make_unique<tego_file_hash_t>(hash);
+                        // filehash
+                        auto heapHash = std::make_unique<tego_file_hash_t>(hash);
 
-                            logger::println("File Request Received, id : {}, filename : {}, hash : {}", id, filename, hash.to_string());
-                            g_globals.context->callback_registry_.emit_attachment_request_received(
-                                userId.release(),
-                                id,
-                                rawFilename.release(),
-                                rawFilenameLength,
-                                fileSize,
-                                heapHash.release());
-                        });
-                }
+                        g_globals.context->callback_registry_.emit_attachment_request_received(
+                            userId.release(),
+                            id,
+                            rawFilename.release(),
+                            rawFilenameLength,
+                            fileSize,
+                            heapHash.release());
+                    });
 
                 connect(
                     fc,
                     &Protocol::FileChannel::fileTransferProgress,
-                    [this](tego_attachment_id_t id, uint64_t bytesTransmitted, uint64_t bytesTotal) -> void
+                    [this](tego_attachment_id_t id, tego_attachment_direction_t direction, uint64_t bytesTransmitted, uint64_t bytesTotal) -> void
                     {
-                        logger::println("File Progress : {{ id : {}, transmitted : {}, total : {} }}", id, bytesTransmitted, bytesTotal);
+                        auto userId = this->contact()->toTegoUserId();
+
+                        g_globals.context->callback_registry_.emit_attachment_progress(
+                            userId.release(),
+                            id,
+                            direction,
+                            bytesTransmitted,
+                            bytesTotal);
                     });
             }
         };
@@ -168,7 +171,6 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> Conversation
         fileHash = std::make_unique<tego_file_hash_t>(file);
 
         message.fileHash = QString::fromStdString(fileHash->to_string());
-        logger::println("Prepping to send file '{}' with hash: {}, id : {}", file_url, fileHash->to_string(), message.identifier);
     }
     else
     {

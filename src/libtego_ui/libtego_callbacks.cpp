@@ -9,8 +9,86 @@ namespace
 {
     constexpr int consumeInterval = 10;
 
+    // this holds a callback which can be called and then deletes the underlying data
+    // replaces std::function beause std::function cannot be move constructed >:[
+    class run_once_task
+    {
+    public:
+        run_once_task() = default;
+        run_once_task(run_once_task&& that)
+        : run_once_task()
+        {
+            *this = std::move(that);
+        }
+
+        // no copying allowed
+        run_once_task(const run_once_task&) = delete;
+        run_once_task& operator=(run_once_task const&) = delete;
+
+        // ensure move does not overwrite existing callback data
+        run_once_task& operator=(run_once_task&& that)
+        {
+            Q_ASSERT(exec == nullptr && callable == nullptr);
+            exec = that.exec;
+            callable = that.callable;
+
+            that.exec = nullptr;
+            that.callable = nullptr;
+
+            return *this;
+        }
+
+        template<typename LAMBDA>
+        run_once_task(LAMBDA&& lambda)
+        {
+            // convertible to raw ptr
+            if constexpr (std::is_convertible<LAMBDA, void(*)(void)>::value)
+            {
+                exec = [](run_once_task* self) -> void
+                {
+                    auto lambda = reinterpret_cast<void(*)(void)>(self->callable);
+                    lambda();
+
+                    self->exec = nullptr;
+                    self->callable = nullptr;
+                };
+                callable = reinterpret_cast<void*>(static_cast<void(*)(void)>(lambda));
+            }
+            // otherwise make a heap copy
+            else
+            {
+                exec = [](run_once_task* self) -> void
+                {
+                    auto lambda = reinterpret_cast<LAMBDA*>(self->callable);
+                    (*lambda)();
+                    delete lambda;
+
+                    self->exec = nullptr;
+                    self->callable = nullptr;
+                };
+                callable = new LAMBDA(std::move(lambda));
+            }
+        }
+
+        // just ensure we're not messing anything up
+        ~run_once_task()
+        {
+            Q_ASSERT(exec == nullptr && callable == nullptr);
+        }
+
+
+        void operator()()
+        {
+            exec(this);
+        }
+
+    private:
+        void(*exec)(run_once_task*) = nullptr;
+        void* callable = nullptr;
+    };
+
     // data
-    std::vector<std::function<void()>> taskQueue;
+    std::vector<run_once_task> taskQueue;
     std::mutex taskQueueLock;
 
     void consume_tasks()
@@ -23,7 +101,7 @@ namespace
         }
 
         // consume all of our tasks
-        for(auto task : localTaskQueue)
+        for(auto& task : localTaskQueue)
         {
             try
             {
@@ -373,7 +451,7 @@ namespace
 
         auto hashSize = tego_file_hash_string_size(fileHash, tego::throw_on_error());
         std::string hashStr(hashSize, (char)0);
-        auto written = tego_file_hash_to_string(fileHash, hashStr.data(), hashStr.size(), tego::throw_on_error());
+        tego_file_hash_to_string(fileHash, hashStr.data(), hashStr.size(), tego::throw_on_error());
 
         logger::println(
             "Received attachment request {{ attachmentId : {}, attachmentName : {}, attachmentSize : {}, attachmentHash : {} }}",
@@ -382,15 +460,27 @@ namespace
             attachmentSize,
             hashStr);
 
-        // for now just accept
-        tego_context_acknowledge_attachment_request(
-            context,
-            sender,
-            attachmentId,
-            tego_attachment_acknowledge_accept,
-            attachmentName,
-            attachmentNameLength,
-            tego::throw_on_error());
+        // we have to call acknowledge on the UI thread, and so we have to marshall over some stuffs >:[
+
+        // sender
+        std::unique_ptr<tego_user_id_t> senderCopy;
+        tego_user_id_copy(sender, tego::out(senderCopy), tego::throw_on_error());
+
+        // attachment name
+        std::string attachmentNameCopy(attachmentName, attachmentNameLength);
+
+        push_task([=,attachmentName=std::move(attachmentNameCopy),sender=std::move(senderCopy)]() -> void
+        {
+            // for now just accept
+            tego_context_acknowledge_attachment_request(
+                context,
+                sender.get(),
+                attachmentId,
+                tego_attachment_acknowledge_accept,
+                attachmentName.data(),
+                attachmentName.size(),
+                tego::throw_on_error());
+        });
     }
 
     void on_attachment_request_acknowledged(
@@ -406,10 +496,16 @@ namespace
         tego_context_t* context,
         const tego_user_id_t* userId,
         tego_attachment_id_t attachmentId,
+        tego_attachment_direction_t direction,
         uint64_t bytesComplete,
         uint64_t bytesTotal)
     {
-        logger::trace();
+        logger::println(
+            "File Progress id : {}, direction : {}, transferred : {} bytes, total : {} bytes",
+            attachmentId,
+            direction == tego_attachment_direction_sending ? "sending" : "receiving",
+            bytesComplete,
+            bytesTotal);
     }
 
     void on_new_identity_created(

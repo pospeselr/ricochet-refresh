@@ -93,7 +93,7 @@ namespace tego
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(message_acknowledged, tego_user_id_t*, tego_message_id_t, tego_bool_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_request_received, tego_user_id_t*, tego_attachment_id_t, char*, size_t, uint64_t, tego_file_hash_t*);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_request_acknowledged, tego_user_id_t*, tego_attachment_id_t, tego_attachment_acknowledge_t);
-        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_progress, tego_user_id_t*, tego_attachment_id_t, uint64_t, uint64_t);
+        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_progress, tego_user_id_t*, tego_attachment_id_t, tego_attachment_direction_t, uint64_t, uint64_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(user_status_changed, tego_user_id_t*, tego_user_status_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(new_identity_created, tego_ed25519_private_key_t*);
 

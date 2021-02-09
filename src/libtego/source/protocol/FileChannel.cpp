@@ -228,6 +228,13 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
             chunk_file.write(message.chunk_data().c_str(), message.chunk_size());
             chunk_file.close();
             it->missing_chunks--;
+
+            // emit progress callback
+            const auto fileId = message.file_id();
+            const auto written = message.chunk_id() * FileMaxChunkSize + message.chunk_size();
+            const auto total = it->size;
+
+            emit this->fileTransferProgress(fileId, tego_attachment_direction_receiving, written, total);
         }
     }
 
@@ -542,6 +549,6 @@ bool FileChannel::sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t 
     file.close();
 
     Channel::sendMessage(packet);
-    emit this->fileTransferProgress(fid, offset + bytes_read, file_size);
+    emit this->fileTransferProgress(fid, tego_attachment_direction_sending, offset + bytes_read, file_size);
     return true;
 }

@@ -145,6 +145,7 @@ namespace tego
     void callback_registry::cleanup_attachment_progress_args(
         tego_user_id_t* user,
         tego_attachment_id_t,
+        tego_attachment_direction_t,
         uint64_t,
         uint64_t)
     {

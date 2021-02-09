@@ -245,6 +245,20 @@ int tego_ed25519_signature_verify(
 typedef struct tego_user_id tego_user_id_t;
 
 // user id
+
+
+/*
+ * Duplicate a user id object
+ *
+ * @param userId : user id to copy
+ * @param out_userId : returned user id
+ * @param error : filled on error
+ */
+void tego_user_id_copy(
+    tego_user_id_t const* userId,
+    tego_user_id_t** out_userId,
+    tego_error_t** error);
+
 /*
  * Convert a v3 onion service id to a user id
  *
@@ -1183,6 +1197,12 @@ typedef void (*tego_attachment_request_acknowledged_callback_t)(
     tego_attachment_id_t attachmentId,
     tego_attachment_acknowledge_t acknowledgement);
 
+typedef enum
+{
+    tego_attachment_direction_sending,
+    tego_attachment_direction_receiving,
+} tego_attachment_direction_t;
+
 /*
  * Callback fired when attachment send or receive progress has changed
  * This callback is fired for both the sender and the receiver
@@ -1197,6 +1217,7 @@ typedef void(*tego_attachment_progress_callback_t)(
     tego_context_t* context,
     const tego_user_id_t* userId,
     tego_attachment_id_t attachmentId,
+    tego_attachment_direction_t attachmentDirection,
     uint64_t bytesComplete,
     uint64_t bytesTotal);
 
