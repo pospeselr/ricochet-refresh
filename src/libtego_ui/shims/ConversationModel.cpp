@@ -170,8 +170,6 @@ namespace shims
                 std::string hashString(hashSize, 0);
                 tego_file_hash_to_string(fileHash.get(), hashString.data(), hashSize, tego::throw_on_error());
 
-                logger::println("attempting tego_context_send_attachement_request: {{ path : '{}', hash : '{}', id : {} }}", path.toStdString(), hashString, attachmentId);
-
                 messageId = attachmentId;
             }
             catch(const std::runtime_error& err)
