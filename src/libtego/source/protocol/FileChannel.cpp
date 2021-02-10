@@ -159,7 +159,7 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
         }
 
         if (response->accepted()) {
-            pendingRecvFile prf;
+            incoming_file_record prf;
             prf.id = message.file_id();
             prf.size = message.size();
 
@@ -186,26 +186,30 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
 
 void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 {
-    Data::File::FileChunkAck *response = new Data::File::FileChunkAck; //todo: replace this with a unique_ptr
+    auto response = std::make_unique<Data::File::FileChunkAck>();
+    response->set_file_chunk_id(message.chunk_id());
+    response->set_file_id(message.file_id());
+    response->set_accepted(false);
 
-    response->set_accepted(true);
     auto it =
         std::find_if(pendingRecvFiles.begin(),
         pendingRecvFiles.end(),
-        [message](const pendingRecvFile &prf) { return prf.id == message.file_id(); });
+        [file_id=message.file_id()](const incoming_file_record &prf) { return prf.id == file_id; });
 
     if (it == pendingRecvFiles.end()) {
         qWarning() << "rejecting chunk for unknown file";
         response->set_accepted(false);
     }
-
-    if (message.chunk_size() > FileMaxChunkSize || message.chunk_size() != message.chunk_data().length()) {
+    else if (message.chunk_size() > FileMaxChunkSize ||
+             message.chunk_size() != message.chunk_data().length())
+    {
         qWarning() << "rejecting chunk because size mismatch";
         response->set_accepted(false);
     }
-
-    if (response->accepted())
+    else
     {
+        response->set_accepted(true);
+
         tego_file_hash chunkHash(
             reinterpret_cast<uint8_t const*>(message.chunk_data().c_str()),
             reinterpret_cast<uint8_t const*>(message.chunk_data().c_str()) + message.chunk_size());
@@ -236,14 +240,6 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 
             emit this->fileTransferProgress(fileId, tego_attachment_direction_receiving, written, total);
         }
-    }
-
-    if (message.has_chunk_id()) {
-        Data::File::Packet packet;
-        response->set_file_chunk_id(message.chunk_id());
-        response->set_file_id(message.file_id());
-        packet.set_allocated_file_chunk_ack(response);
-        Channel::sendMessage(packet);
     }
 
     if (it->missing_chunks == 0 && response->accepted()) {
@@ -299,22 +295,28 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 
         // todo: erase tmp dir (or better yet, put the temp dir in the same place as our destination path)
     }
+
+    Data::File::Packet packet;
+    packet.set_allocated_file_chunk_ack(response.release());
+    Channel::sendMessage(packet);
 }
 
 void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
 {
     auto it =
-        std::find_if(queuedFiles.begin(),
-        queuedFiles.end(),
-        [&](const queuedFile &qf)
+        std::find_if(outgoingTransfers.begin(),
+        outgoingTransfers.end(),
+        [&](const outgoing_transfer &qf)
         {
 			// find our queued file
             return (qf.id == message.file_id()) &&
                    (qf.cur_chunk == message.file_chunk_id());
         });
 
-    if (it == queuedFiles.end()) {
+    if (it == outgoingTransfers.end()) {
         qWarning() << "recieved ack for a chunk we never sent";
+        // xxx: we can also get here when we cancel a transfer, and the client responds
+        // with an ack message
         return;
     }
 
@@ -327,7 +329,7 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     const auto offset = it->cur_chunk * FileMaxChunkSize;
     if (offset >= it->size) {
         it->finished = true;
-        queuedFiles.erase(it);
+        outgoingTransfers.erase(it);
         return;
     }
 
@@ -342,27 +344,23 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
     }
 
     auto it =
-        std::find_if(pendingFileHeaders.begin(),
-        pendingFileHeaders.end(),
-        [message](const queuedFile &qf) { return qf.id == message.file_id(); });
+        std::find_if(outgoingTransfers.begin(),
+        outgoingTransfers.end(),
+        [message](const outgoing_transfer &qf) { return qf.id == message.file_id(); });
 
-    if (it == pendingFileHeaders.end()) {
+    if (it == outgoingTransfers.end()) {
         qWarning() << "recieved ack for a file header we never sent";
         return;
     }
 
-    auto index = std::distance(pendingFileHeaders.begin(), it);
+    auto index = std::distance(outgoingTransfers.begin(), it);
 
 
     /* start the transfer at chunk 0 */
     if (message.accepted()) {
         //todo: message_acknowledged signal/callback needs to go here, before the call to sendChunkWithId
         sendChunkWithId(it->id, it->path, 0);
-        queuedFiles.insert(queuedFiles.end(), std::make_move_iterator(pendingFileHeaders.begin() + index),
-                                              std::make_move_iterator(pendingFileHeaders.end()));
     }
-
-    pendingFileHeaders.erase(pendingFileHeaders.begin() + index);
 }
 
 bool FileChannel::sendFileWithId(QString file_uri,
@@ -401,14 +399,14 @@ bool FileChannel::sendFileWithId(QString file_uri,
     }
     file.close();
 
-    queuedFile qf;
+    outgoing_transfer qf;
     qf.id = file_id;
     qf.path = file_path.toStdString();
     qf.cur_chunk = 0;
     qf.peer_did_accept = false;
     qf.size = file_size;
 
-    pendingFileHeaders.push_back(qf);
+    outgoingTransfers.push_back(qf);
 
     Data::File::FileHeader *header = new Data::File::FileHeader; //todo: replace this with a unique_ptr
     header->set_file_id(file_id);
@@ -440,7 +438,7 @@ void FileChannel::acceptFile(tego_attachment_id_t fileId, const std::string& des
     TEGO_THROW_IF_FALSE(destFile.is_open());
     destFile.close();
 
-    // todo: we need to rework the path and name logic of pendingRecvFile
+    // todo: we need to rework the path and name logic of incoming_file_record
     it->name = dest;
 
     auto response = std::make_unique<Data::File::FileHeaderAck>();
@@ -461,7 +459,7 @@ void FileChannel::rejectFile(tego_attachment_id_t fileId)
 
     TEGO_THROW_IF_FALSE(it != pendingRecvFiles.end());
 
-    // remove the pendingRecvFile from our list on reject
+    // remove the incoming_file_record from our list on reject
     pendingRecvFiles.erase(it);
 
     auto response = std::make_unique<Data::File::FileHeaderAck>();
@@ -481,11 +479,11 @@ void FileChannel::cancelTransfer(tego_attachment_id_t fileId)
 bool FileChannel::sendNextChunk(file_id_t id) {
     //TODO: check either file digest or file last modified time, if they don't match before, start from chunk 0
     auto it =
-        std::find_if(queuedFiles.begin(),
-        queuedFiles.end(),
-        [id](const queuedFile &qf) { return qf.id == id; });
+        std::find_if(outgoingTransfers.begin(),
+        outgoingTransfers.end(),
+        [id](const outgoing_transfer &qf) { return qf.id == id; });
 
-    if (it == queuedFiles.end()) return false;
+    if (it == outgoingTransfers.end()) return false;
     if (it->cur_chunk * FileMaxChunkSize > it->size) it->finished = true;
     if (it->finished) return false;
 

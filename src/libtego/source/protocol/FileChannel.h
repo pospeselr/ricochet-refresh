@@ -72,7 +72,8 @@ protected:
 private:
     size_t fsize_to_chunks(size_t sz);
 
-    struct queuedFile {
+    struct outgoing_transfer
+    {
         file_id_t id = 0;
         std::string path;
         qint64 size = 0;
@@ -81,7 +82,8 @@ private:
         bool peer_did_accept = false;
     };
 
-    struct pendingRecvFile {
+    struct incoming_file_record
+	{
         file_id_t id = 0;
         size_t size = 0;
         chunk_id_t cur_chunk = 0;
@@ -92,9 +94,11 @@ private:
         std::string name;
     };
 
-    std::vector<queuedFile> queuedFiles;            //files that have already been queued to be sent and the destination has replied accepting the transfer
-    std::vector<queuedFile> pendingFileHeaders;     //file headers that we sent and that are waiting for an ack
-    std::vector<pendingRecvFile> pendingRecvFiles;  //files that we have accepted to recieve, and are waiting on chunks
+    // todo: make these unordered_map<file_id_t, record>?
+
+    std::vector<outgoing_transfer> outgoingTransfers;            //files that have already been queued to be sent and the destination has replied accepting the transfer
+
+    std::vector<incoming_file_record> pendingRecvFiles;  //files that we have accepted to recieve, and are waiting on chunks
 
     void handleFileHeader(const Data::File::FileHeader &message);
     void handleFileChunk(const Data::File::FileChunk &message);
