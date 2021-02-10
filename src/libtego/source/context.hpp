@@ -74,10 +74,18 @@ public:
     Tor::TorControl* torControl = nullptr;
     IdentityManager* identityManager = nullptr;
 
+    // we store the thread id that this context is associated with
+    // calls which go into our qt internals must be called from the same
+    // thread as the context was created on
+    // (this is not entirely true, they must be called from the thread with the Qt
+    // event loop, which in our case is the thread the context is created on)
+    std::thread::id threadId;
 private:
     class ContactUser* getContactUser(const tego_user_id_t*) const;
 
     mutable std::string torVersion;
     mutable std::vector<std::string> torLogs;
     tego_host_user_state_t hostUserState = tego_host_user_state_unknown;
+
+
 };

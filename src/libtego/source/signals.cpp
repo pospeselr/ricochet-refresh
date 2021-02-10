@@ -250,6 +250,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void\
         {\
             TEGO_THROW_IF_NULL(context);\
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());\
             context->callback_registry_.register_##EVENT(callback);\
         }, error);\
     }

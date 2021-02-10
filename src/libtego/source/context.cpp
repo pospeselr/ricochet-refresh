@@ -21,6 +21,7 @@ using tego::g_globals;
 tego_context::tego_context()
 : callback_registry_(this)
 , callback_queue_(this)
+, threadId(std::this_thread::get_id())
 {
     this->torManager = Tor::TorManager::instance();
     this->torControl = torManager->control();
@@ -722,6 +723,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
 
             context->start_tor(launchConfig);
         }, error);
@@ -735,6 +737,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_configured);
 
             *out_configured = TEGO_FALSE;
@@ -753,6 +756,7 @@ extern "C"
         return tego::translateExceptions([=]() -> size_t
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
 
             return context->get_tor_logs_size();
         }, error, 0);
@@ -768,6 +772,7 @@ extern "C"
         return tego::translateExceptions([=]() -> size_t
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_logBuffer);
 
             // nothing to do if no space to write
@@ -812,6 +817,7 @@ extern "C"
         return tego::translateExceptions([=]() -> const char*
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
 
             return context->get_tor_version_string();
         }, error, nullptr);
@@ -825,6 +831,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_status);
 
             auto status = context->get_tor_control_status();
@@ -840,6 +847,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_status);
 
             const auto status = context->get_tor_process_status();
@@ -855,6 +863,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_status);
 
             auto status = context->get_tor_network_status();
@@ -871,6 +880,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_progress);
             TEGO_THROW_IF_NULL(out_tag);
 
@@ -893,6 +903,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
 
             if (hostPrivateKey == nullptr)
             {
@@ -921,6 +932,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_hostUser);
 
             auto hostUser = context->get_host_user_id();
@@ -936,6 +948,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_state);
 
             auto state = context->get_host_user_state();
@@ -951,6 +964,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
 
             context->update_tor_daemon_config(torConfig);
         }, error);
@@ -963,6 +977,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
 
             context->save_tor_daemon_config();
         }, error);
@@ -977,6 +992,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(user);
             TEGO_THROW_IF_NULL(out_type);
 
@@ -993,6 +1009,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_userCount);
 
             auto count = context->get_user_count();
@@ -1010,6 +1027,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(out_usersBuffer);
             TEGO_THROW_IF_NULL(out_userCount);
 
@@ -1034,6 +1052,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(user);
             TEGO_THROW_IF_FALSE(message != nullptr || messageLength == 0);
 
@@ -1050,6 +1069,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
 
             context->acknowledge_chat_request(user, response);
         }, error);
@@ -1067,6 +1087,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(user);
             TEGO_THROW_IF_NULL(filePath);
             TEGO_THROW_IF_FALSE(filePathLength > 0);
@@ -1099,6 +1120,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(user);
             TEGO_THROW_IF_NULL(destPath);
             TEGO_THROW_IF_FALSE(destPathLength > 0);
@@ -1119,6 +1141,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             context->cancel_attachment_transfer(id);
         }, error);
     }
@@ -1134,6 +1157,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(user);
             TEGO_THROW_IF_NULL(message);
             TEGO_THROW_IF_FALSE(messageLength > 0);
@@ -1155,6 +1179,7 @@ extern "C"
         return tego::translateExceptions([=]() -> void
         {
             TEGO_THROW_IF_NULL(context);
+            TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             context->forget_user(user);
         }, error);
     }
