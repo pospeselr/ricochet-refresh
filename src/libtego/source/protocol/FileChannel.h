@@ -57,6 +57,7 @@ public:
     bool sendFileWithId(QString file_url, QString file_hash, QDateTime time, file_id_t id);
     void acceptFile(tego_attachment_id_t fileId, const std::string& dest);
     void rejectFile(tego_attachment_id_t fileId);
+    void cancelTransfer(tego_attachment_id_t fileId);
 
 signals:
     void fileRequestReceived(file_id_t id, QString fileName, size_t fileSize, tego_file_hash_t);

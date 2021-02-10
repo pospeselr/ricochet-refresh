@@ -82,6 +82,7 @@ public:
 
     void acceptFile(tego_attachment_id_t fileId, const std::string& dest);
     void rejectFile(tego_attachment_id_t fileId);
+    void cancelTransfer(tego_attachment_id_t fileId);
 
     void clear();
 

@@ -638,9 +638,16 @@ void tego_context::acknowledge_attachment_request(
 
 void tego_context::cancel_attachment_transfer(
     tego_user_id_t const* user,
-    tego_attachment_id_t)
+    tego_attachment_id_t attachment)
 {
+    // ensure we have a valid user
+    TEGO_THROW_IF_NULL(user);
 
+    auto contactUser = this->getContactUser(user);
+    TEGO_THROW_IF_NULL(contactUser);
+    auto conversationModel = contactUser->conversation();
+
+    conversationModel->cancelTransfer(attachment);
 }
 
 //

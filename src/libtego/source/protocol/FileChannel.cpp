@@ -473,6 +473,11 @@ void FileChannel::rejectFile(tego_attachment_id_t fileId)
     Channel::sendMessage(packet);
 }
 
+void FileChannel::cancelTransfer(tego_attachment_id_t fileId)
+{
+
+}
+
 bool FileChannel::sendNextChunk(file_id_t id) {
     //TODO: check either file digest or file last modified time, if they don't match before, start from chunk 0
     auto it =

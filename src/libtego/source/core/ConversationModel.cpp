@@ -255,6 +255,17 @@ void ConversationModel::rejectFile(tego_attachment_id_t fileId)
     channel->rejectFile(fileId);
 }
 
+void ConversationModel::cancelTransfer(tego_attachment_id_t fileId)
+{
+    TEGO_THROW_IF_FALSE(m_contact->connection());
+
+    auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Inbound);
+    TEGO_THROW_IF_NULL(channel);
+    TEGO_THROW_IF_FALSE(channel->isOpened());
+
+    channel->cancelTransfer(fileId);
+}
+
 
 void ConversationModel::sendQueuedMessages()
 {
