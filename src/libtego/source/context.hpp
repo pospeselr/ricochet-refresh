@@ -61,6 +61,7 @@ public:
         tego_attachment_acknowledge_t response,
         std::string const& destPath);
     void cancel_attachment_transfer(
+        tego_user_id_t const* user,
         tego_attachment_id_t);
 
     tego::callback_registry callback_registry_;

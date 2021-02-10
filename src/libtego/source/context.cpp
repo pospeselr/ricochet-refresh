@@ -637,6 +637,7 @@ void tego_context::acknowledge_attachment_request(
 }
 
 void tego_context::cancel_attachment_transfer(
+    tego_user_id_t const* user,
     tego_attachment_id_t)
 {
 
@@ -1135,6 +1136,7 @@ extern "C"
 
     void tego_context_cancel_attachment_transfer(
         tego_context* context,
+        tego_user_id_t const* user,
         tego_attachment_id_t id,
         tego_error_t** error)
     {
@@ -1142,7 +1144,8 @@ extern "C"
         {
             TEGO_THROW_IF_NULL(context);
             TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
-            context->cancel_attachment_transfer(id);
+            TEGO_THROW_IF_NULL(user);
+            context->cancel_attachment_transfer(user, id);
         }, error);
     }
 

@@ -924,11 +924,13 @@ void tego_context_acknowledge_attachment_request(
  * Cancel an in-progress attachment transfer
  *
  * @param context : the current tego context
+ * @param user : the user that is sending/receiving the transfer
  * @param id : the attachment transfer to cancel
  * @param error: filled on error
  */
 void tego_context_cancel_attachment_transfer(
     tego_context_t* context,
+    tego_user_id_t const* user,
     tego_attachment_id_t id,
     tego_error_t** error);
 
