@@ -120,6 +120,7 @@ namespace shims
 
     void ConversationModel::sendMessage(const QString &text)
     {
+        logger::println("sendMessage : {}", text);
         auto userIdentity = shims::UserIdentity::userIdentity;
         auto context = userIdentity->getContext();
 

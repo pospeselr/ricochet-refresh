@@ -160,6 +160,8 @@ template<typename T> T *findOrCreateChannelForContact(ContactUser *contact, Prot
 
 std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> ConversationModel::sendFile(const QString &file_url)
 {
+    logger::println("Sending file: {}", file_url);
+
     MessageData message(file_url, QDateTime::currentDateTime(), lastMessageId++, Queued);
     message.type = ConversationModel::MessageData::Type::File;
 
@@ -179,19 +181,27 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> Conversation
 
     if (m_contact->connection())
     {
+        logger::trace();
         auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Outbound);
         if (channel && channel->isOpened())
         {
+            logger::trace();
             if (channel->sendFileWithId(message.text, message.fileHash, QDateTime(), message.identifier))
             {
+                logger::trace();
                 message.status = Sending;
             }
             else
             {
+                logger::trace();
                 message.status = Error;
             }
             message.attemptCount++;
         }
+    }
+    else
+    {
+        logger::trace();
     }
 
     beginInsertRows(QModelIndex(), 0, 0);
@@ -299,6 +309,10 @@ void ConversationModel::sendQueuedMessages()
                         logger::println("Attempted to send queued file: {}", m.text);
                         m.status = file_channel->sendFileWithId(m.text, m.fileHash, m.time, m.identifier) ? Sending : Error;
                         attempted = true;
+                    }
+                    else
+                    {
+                        logger::println("file channel is not open but we have a file request to send:/");
                     }
                     break;
                 default:

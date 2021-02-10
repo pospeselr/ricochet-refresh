@@ -72,33 +72,30 @@ protected:
 private:
     size_t fsize_to_chunks(size_t sz);
 
-    struct outgoing_transfer
+    struct outgoing_transfer_record
     {
-        file_id_t id = 0;
         std::string path;
-        qint64 size = 0;
+        const qint64 size = 0;
         chunk_id_t cur_chunk = 0;
         bool finished = false;
         bool peer_did_accept = false;
     };
 
-    struct incoming_file_record
+    struct incoming_transfer_record
 	{
-        file_id_t id = 0;
-        size_t size = 0;
+        const size_t size = 0;
         chunk_id_t cur_chunk = 0;
-        chunk_id_t n_chunks = 0;
+        const chunk_id_t n_chunks = 0;
         chunk_id_t missing_chunks = 0;
-        std::string path;
-        std::string sha3_512;
+        const std::string path;
+        const std::string sha3_512;
         std::string name;
     };
 
-    // todo: make these unordered_map<file_id_t, record>?
-
-    std::vector<outgoing_transfer> outgoingTransfers;            //files that have already been queued to be sent and the destination has replied accepting the transfer
-
-    std::vector<incoming_file_record> pendingRecvFiles;  //files that we have accepted to recieve, and are waiting on chunks
+    // file transfers we are sending
+    std::map<file_id_t, outgoing_transfer_record> outgoingTransfers;
+    // file transfers we are receiving
+    std::map<file_id_t, incoming_transfer_record> incomingTransfers;
 
     void handleFileHeader(const Data::File::FileHeader &message);
     void handleFileChunk(const Data::File::FileChunk &message);
