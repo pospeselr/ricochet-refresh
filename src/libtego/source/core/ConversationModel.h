@@ -47,6 +47,7 @@ class ConversationModel : public QAbstractListModel
 
 public:
     typedef Protocol::ChatChannel::MessageId MessageId;
+    static_assert(std::is_same_v<MessageId, tego_message_id_t>);
 
     enum {
         TimestampRole = Qt::UserRole,

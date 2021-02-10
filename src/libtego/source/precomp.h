@@ -61,6 +61,7 @@ extern "C" {
 #include <sstream>
 #include <optional>
 #include <tuple>
+#include <type_traits>
 
 // fmt
 #include <fmt/format.h>
