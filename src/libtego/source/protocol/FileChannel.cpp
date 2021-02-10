@@ -44,6 +44,14 @@ using tego::g_globals;
 
 using namespace Protocol;
 
+FileChannel::outgoing_transfer_record::outgoing_transfer_record(const std::string& filePath, qint64 fileSize)
+: size(fileSize)
+, offset(0)
+, cur_chunk(0)
+, stream(filePath, std::ios::in | std::ios::binary)
+, chunkBuffer(std::make_unique<char[]>(FileMaxChunkSize))
+{ }
+
 FileChannel::FileChannel(Direction direction, Connection *connection)
     : Channel(QStringLiteral("im.ricochet.file-transfer"), direction, connection)
 {
@@ -311,22 +319,23 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     }
     auto& otr = it->second;
 
-    // increment chunk index for sendChunkWithId
-    if(message.accepted())
+    // see if we are done sending chunks
+    if (otr.finished())
     {
-        otr.cur_chunk++;
-    }
-
-    const auto offset = otr.cur_chunk * FileMaxChunkSize;
-
-    // check if this is our last chunk
-    if (offset >= otr.size) {
-        otr.finished = true;
         outgoingTransfers.erase(it);
         return;
     }
 
-    sendChunkWithId(id, otr.path, otr.cur_chunk);
+    // increment chunk index for sendChunkWithId
+    if(message.accepted())
+    {
+        otr.cur_chunk++;
+        sendNextChunk(id);
+    }
+    else
+    {
+        outgoingTransfers.erase(it);
+    }
 }
 
 void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
@@ -348,9 +357,7 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
     /* start the transfer at chunk 0 */
     if (message.accepted())
     {
-        //todo: message_acknowledged signal/callback needs to go here, before the call to sendChunkWithId
-        auto& otr = it->second;
-        sendChunkWithId(id, otr.path, 0);
+        sendNextChunk(id);
     }
     else
     {
@@ -374,36 +381,24 @@ bool FileChannel::sendFileWithId(QString file_uri,
         return false;
     }
 
-    /* sendNextChunk will resume a transfer if connection was interrupted */
-    if (sendNextChunk(file_id)) return true;
-
     /* only allow regular files or symlinks chains to regular files */
     QFileInfo fi(file_uri);
-    QString file_path = fi.canonicalFilePath();
+    auto file_path = fi.canonicalFilePath().toStdString();
     if (file_path.size() == 0) {
         qWarning() << "Could net resolve file path";
         return false;
     }
 
-    auto file_size = fi.size();
+    const auto file_size = fi.size();
+    const auto file_chunks = fsize_to_chunks(file_size);
 
-    auto file_chunks = fsize_to_chunks(file_size);
-    std::ifstream file(file_path.toStdString(), std::ios::in | std::ios::binary);
-    if (!file) {
+    // create our record
+    outgoing_transfer_record qf(file_path, file_size);
+    if (!qf.stream.is_open())
+    {
         qWarning() << "Failed to open file for sending header";
         return false;
     }
-    file.close();
-
-    outgoing_transfer_record qf =
-    {
-        file_path.toStdString(),
-        file_size,
-        0,
-        false,
-        false,
-    };
-
     outgoingTransfers.insert({file_id, std::move(qf)});
 
     Data::File::FileHeader *header = new Data::File::FileHeader; //todo: replace this with a unique_ptr
@@ -467,91 +462,54 @@ void FileChannel::cancelTransfer(tego_attachment_id_t fileId)
 
 }
 
-bool FileChannel::sendNextChunk(file_id_t id) {
-    //TODO: check either file digest or file last modified time, if they don't match before, start from chunk 0
-    auto it = outgoingTransfers.find(id);
-
-    if (it == outgoingTransfers.end())
-    {
-        return false;
-    }
-
-    auto& otr = it->second;
-    if (otr.cur_chunk * FileMaxChunkSize > otr.size)
-    {
-        otr.finished = true;
-    }
-    if (otr.finished)
-    {
-        // xxx: we should never be here, this function should not ever be called if the transfer is finished
-        return false;
-    }
-
-    return sendChunkWithId(id, otr.path, otr.cur_chunk++);
-}
-
-bool FileChannel::sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t cid)
+bool FileChannel::sendNextChunk(file_id_t id)
 {
     if (direction() != Outbound) {
         BUG() << "Attempted to send outbound message on non outbound channel";
         return false;
     }
 
-    std::ifstream file(fpath, std::ios::in | std::ios::binary);
-    if (!file)
+    auto it = outgoingTransfers.find(id);
+    if (it == outgoingTransfers.end())
     {
-        qWarning() << "Failed to open file for sending chunk";
+        BUG() << "Attemping to send next chunk for unknown file" << id;
         return false;
     }
+    auto& otr = it->second;
 
-    QFileInfo fi(QString::fromStdString(fpath));
-    const qint64 file_size = fi.size();
-    const qint64 offset = cid * FileMaxChunkSize;
+    auto& chunkBuffer = otr.chunkBuffer;
 
-    TEGO_THROW_IF_FALSE(file_size >= 0 && offset >= 0);
+    // make sure our offset and the stream offset agree
+    Q_ASSERT(otr.finished() == false);
+    Q_ASSERT(otr.offset == otr.stream.tellg());
+    Q_ASSERT(otr.offset == otr.cur_chunk * FileMaxChunkSize);
 
-    if (offset >= file_size)
-    {
-        qWarning() << "Attempted to start read beyond eof";
-        return false;
-    }
+    // read the next chunk to our buffer, and update our offset
+    otr.stream.read(chunkBuffer.get(), FileMaxChunkSize);
+    const auto chunkSize = otr.stream.gcount();
+    otr.offset += chunkSize;
 
-    /* go to the pos of the chunk */
-    file.seekg(offset);
-    if (!file)
-    {
-        qWarning() << "Failed to seek to last position in file for chunking";
-        return false;
-    }
-
-    auto buf = std::make_unique<char[]>(FileMaxChunkSize);
-
-    file.read(buf.get(), FileMaxChunkSize);
-    auto bytes_read = file.gcount();
-    /* the only time bytes_read would be >FileMaxChunkSize is if gcount thinks the
-     * amount of bytes read is unrepresentable, in which case something has
-     * gone wrong */
-    TEGO_THROW_IF_TRUE_MSG(bytes_read > FileMaxChunkSize, "Invalid amount of bytes read");
-
+    // calculate this chunks hash
     tego_file_hash chunkHash(
-        reinterpret_cast<uint8_t const*>(buf.get()),
-        reinterpret_cast<uint8_t const*>(buf.get()) + bytes_read);
+        reinterpret_cast<uint8_t const*>(chunkBuffer.get()),
+        reinterpret_cast<uint8_t const*>(chunkBuffer.get() + chunkSize));
 
-    logger::println("Sending file:chunk {}:{} with hash: {}", fid, cid, chunkHash.to_string());
-
-    /* send this chunk */
+    // build our chunk
     auto chunk = std::make_unique<Data::File::FileChunk>();
     chunk->set_sha3_512(chunkHash.to_string());
-    chunk->set_file_id(fid);
-    chunk->set_chunk_id(cid);
-    chunk->set_chunk_size(bytes_read);
-    chunk->set_chunk_data(buf.get(), bytes_read);
-    //TODO chunk.set_time_delta();
+    chunk->set_file_id(id);
+    chunk->set_chunk_id(otr.cur_chunk);
+    chunk->set_chunk_size(chunkSize);
+    chunk->set_chunk_data(chunkBuffer.get(), chunkSize);
+
     Data::File::Packet packet;
     packet.set_allocated_file_chunk(chunk.release());
-    file.close();
 
+    // send the chunk
     Channel::sendMessage(packet);
-    emit this->fileTransferProgress(fid, tego_attachment_direction_sending, offset + bytes_read, file_size);
+
+    // emit for callback
+    emit this->fileTransferProgress(id, tego_attachment_direction_sending, otr.offset, otr.size);
+
     return true;
 }

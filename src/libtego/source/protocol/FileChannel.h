@@ -74,11 +74,20 @@ private:
 
     struct outgoing_transfer_record
     {
-        std::string path;
-        const qint64 size = 0;
-        chunk_id_t cur_chunk = 0;
-        bool finished = false;
-        bool peer_did_accept = false;
+        outgoing_transfer_record(
+            const std::string& filePath,
+            qint64 fileSize);
+
+        const qint64 size;
+        qint64 offset;
+        chunk_id_t cur_chunk;   // rename to current chunk index or something (or do our math in terms of offsets instead?)
+        std::ifstream stream;
+
+        // intermediate buffer we load chunks from disk into
+        // in theory could be a single buffer on FileChannel (since work only happens on one thread)
+        std::unique_ptr<char[]> chunkBuffer;
+
+        inline bool finished() const { return offset == size; }
     };
 
     struct incoming_transfer_record
@@ -101,7 +110,6 @@ private:
     void handleFileChunk(const Data::File::FileChunk &message);
     void handleFileChunkAck(const Data::File::FileChunkAck &message);
     void handleFileHeaderAck(const Data::File::FileHeaderAck &message);
-    bool sendChunkWithId(file_id_t fid, std::string &fpath, chunk_id_t cid);
     bool sendNextChunk(file_id_t id);
 };
 

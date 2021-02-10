@@ -168,6 +168,7 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> Conversation
     std::unique_ptr<tego_file_hash_t> fileHash;
 
     // calculate our file hash
+    // todo, move this calculation down into channel
     if(std::ifstream file(file_url.toStdString(), std::ios::in | std::ios::binary); file.is_open())
     {
         fileHash = std::make_unique<tego_file_hash_t>(file);
