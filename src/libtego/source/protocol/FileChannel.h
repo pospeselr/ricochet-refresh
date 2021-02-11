@@ -92,13 +92,19 @@ private:
 
     struct incoming_transfer_record
 	{
-        const size_t size = 0;
-        chunk_id_t cur_chunk = 0;
-        const chunk_id_t n_chunks = 0;
-        chunk_id_t missing_chunks = 0;
-        const std::string path;
+        incoming_transfer_record(qint64 fileSize, const std::string& fileHash, chunk_id_t chunkCount);
+
+        const qint64 size;
+        chunk_id_t cur_chunk;
+        chunk_id_t missing_chunks;
+        std::string dest; // destination to save to
         const std::string sha3_512;
-        std::string name;
+
+        // need to write and read
+        std::fstream stream;
+
+        inline std::string partial_dest() const;
+        void open_stream(const std::string& dest);
     };
 
     // file transfers we are sending

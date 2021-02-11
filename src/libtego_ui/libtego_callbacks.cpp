@@ -467,18 +467,24 @@ namespace
         tego_user_id_copy(sender, tego::out(senderCopy), tego::throw_on_error());
 
         // attachment name
-        std::string attachmentNameCopy(attachmentName, attachmentNameLength);
+        QString attachmentNameCopy = QString::fromUtf8(attachmentName, attachmentNameLength);
 
         push_task([=,attachmentName=std::move(attachmentNameCopy),sender=std::move(senderCopy)]() -> void
         {
+            QFileInfo fi(attachmentName);
+
+            const auto destination = QString("%1/%2").arg(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)).arg(fi.fileName()).toUtf8();
+
+            logger::println("save location: {}", destination.data());
+
             // for now just accept
             tego_context_acknowledge_attachment_request(
                 context,
                 sender.get(),
                 attachmentId,
                 tego_attachment_acknowledge_accept,
-                attachmentName.data(),
-                attachmentName.size(),
+                destination.data(),
+                destination.size(),
                 tego::throw_on_error());
         });
     }
