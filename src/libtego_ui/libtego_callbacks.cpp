@@ -514,6 +514,30 @@ namespace
             bytesTotal);
     }
 
+    void on_attachment_cancelled(
+        tego_context_t* context,
+        const tego_user_id_t* userId,
+        tego_attachment_id_t attachmentId,
+        tego_attachment_direction_t direction)
+    {
+        logger::println(
+            "File Transfer Cancelled id : {}, direction : {}",
+            attachmentId,
+            direction == tego_attachment_direction_sending ? "sending" : "receiving");
+    }
+
+    void on_attachment_complete(
+        tego_context_t* context,
+        const tego_user_id_t* userId,
+        tego_attachment_id_t attachmentId,
+        tego_attachment_direction_t direction)
+    {
+        logger::println(
+            "File Transfer Complete id : {}, direction : {}",
+            attachmentId,
+            direction == tego_attachment_direction_sending ? "sending" : "receiving");
+    }
+
     void on_new_identity_created(
         tego_context_t*,
         const tego_ed25519_private_key_t* privateKey)
@@ -608,6 +632,16 @@ void init_libtego_callbacks(tego_context_t* context)
     tego_context_set_attachment_progress_callback(
         context,
         &on_attachment_progress,
+        tego::throw_on_error());
+
+    tego_context_set_attachment_cancelled_callback(
+        context,
+        &on_attachment_cancelled,
+        tego::throw_on_error());
+
+    tego_context_set_attachment_complete_callback(
+        context,
+        &on_attachment_complete,
         tego::throw_on_error());
 
     tego_context_set_user_status_changed_callback(

@@ -111,7 +111,6 @@ void ConversationModel::setContact(ContactUser *contact)
                     [this](tego_attachment_id_t id, tego_attachment_direction_t direction, uint64_t bytesTransmitted, uint64_t bytesTotal) -> void
                     {
                         auto userId = this->contact()->toTegoUserId();
-
                         g_globals.context->callback_registry_.emit_attachment_progress(
                             userId.release(),
                             id,
@@ -119,6 +118,32 @@ void ConversationModel::setContact(ContactUser *contact)
                             bytesTransmitted,
                             bytesTotal);
                     });
+
+                connect(
+                    fc,
+                    &Protocol::FileChannel::fileTransferCancelled,
+                    [this](tego_attachment_id_t id, tego_attachment_direction_t direction) -> void
+                    {
+                        auto userId = this->contact()->toTegoUserId();
+                        g_globals.context->callback_registry_.emit_attachment_cancelled(
+                            userId.release(),
+                            id,
+                            direction);
+                    });
+
+                connect(
+                    fc,
+                    &Protocol::FileChannel::fileTransferFinished,
+                    [this](tego_attachment_id_t id, tego_attachment_direction_t direction) -> void
+                    {
+                        auto userId = this->contact()->toTegoUserId();
+                        g_globals.context->callback_registry_.emit_attachment_complete(
+                            userId.release(),
+                            id,
+                            direction);
+                    });
+
+                // todo, retry sending messages after the FileChannel reconnects
             }
         };
 
@@ -270,11 +295,27 @@ void ConversationModel::cancelTransfer(tego_attachment_id_t fileId)
 {
     TEGO_THROW_IF_FALSE(m_contact->connection());
 
-    auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Inbound);
-    TEGO_THROW_IF_NULL(channel);
-    TEGO_THROW_IF_FALSE(channel->isOpened());
+    // first try cancelling an inbound transfer
+    if (auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Inbound);
+        channel != nullptr)
+    {
+        if (channel->isOpened() && channel->cancelTransfer(fileId))
+        {
+            return;
+        }
+    }
 
-    channel->cancelTransfer(fileId);
+    // next try cancelling an outbound transfer
+    if (auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Outbound);
+        channel != nullptr)
+    {
+        if (channel->isOpened() && channel->cancelTransfer(fileId))
+        {
+            return;
+        }
+    }
+
+    TEGO_THROW_MSG("Tego transfer {} does not exist", fileId);
 }
 
 

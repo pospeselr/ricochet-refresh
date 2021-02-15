@@ -57,9 +57,10 @@ FileChannel::outgoing_transfer_record::outgoing_transfer_record(
 , stream(filePath, std::ios::in | std::ios::binary)
 { }
 
-void FileChannel::outgoing_transfer_record::cancel()
+void FileChannel::outgoing_transfer_record::cancel(FileChannel* channel)
 {
-    // TODO: emit signal
+    // emit signal to notify callback system
+    emit channel->fileTransferCancelled(this->id, tego_attachment_direction_sending);
 }
 
 // Incoming Transfer Record
@@ -94,7 +95,7 @@ void FileChannel::incoming_transfer_record::open_stream(const std::string& dest)
     TEGO_THROW_IF_FALSE(this->stream.is_open());
 }
 
-void FileChannel::incoming_transfer_record::cancel()
+void FileChannel::incoming_transfer_record::cancel(FileChannel* channel)
 {
     // try our best to remove the partial file
     this->stream.close();
@@ -104,7 +105,8 @@ void FileChannel::incoming_transfer_record::cancel()
     // don't erase already transferred file
     QFile::remove(QString::fromStdString(partial));
 
-    // TODO: emit signal
+    // emit signal to notify callback system
+    emit channel->fileTransferCancelled(this->id, tego_attachment_direction_receiving);
 }
 
 // File Channel
@@ -265,7 +267,6 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 
             if (itr.missing_chunks == 0)
             {
-
                 /* sha3_512 validation */
 
                 // reset the read/write stream and calculate the file hash
@@ -295,7 +296,9 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
                 TEGO_THROW_IF_FALSE(QFile::rename(qPartialDest, qDest));
 
                 incomingTransfers.erase(it);
-                // todo: erase tmp dir (or better yet, put the temp dir in the same place as our destination path)
+
+                // notify transfer finisehd
+                emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving);
             }
         }
     }
@@ -322,6 +325,7 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     if (otr.finished())
     {
         outgoingTransfers.erase(it);
+        emit this->fileTransferFinished(id, tego_attachment_direction_sending);
         return;
     }
 
@@ -372,13 +376,13 @@ void FileChannel::handleFileCancelNotification(const Data::File::FileCancelNotif
     // first look for an outgoing transfer with this id and cancel, erase it
     if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
     {
-        it->second.cancel();
+        it->second.cancel(this);
         outgoingTransfers.erase(it);
     }
     // next look for an incoming transfer with this id and cancel, erase it
     else if (auto it = incomingTransfers.find(id); it != incomingTransfers.end())
     {
-        it->second.cancel();
+        it->second.cancel(this);
         incomingTransfers.erase(it);
     }
     else
@@ -471,24 +475,23 @@ void FileChannel::rejectFile(tego_attachment_id_t fileId)
     Channel::sendMessage(packet);
 }
 
-void FileChannel::cancelTransfer(tego_attachment_id_t fileId)
+bool FileChannel::cancelTransfer(tego_attachment_id_t fileId)
 {
     // verify the transfer exists in our system
     if (auto it = incomingTransfers.find(fileId); it != incomingTransfers.end())
     {
-        it->second.cancel();
+        it->second.cancel(this);
         incomingTransfers.erase(it);
 
     }
     else if (auto it = outgoingTransfers.find(fileId); it != outgoingTransfers.end())
     {
-        it->second.cancel();
+        it->second.cancel(this);
         outgoingTransfers.erase(it);
     }
     else
     {
-        // error out if we have no record of this transfer
-        TEGO_THROW_MSG("Cannot cancel fiel transfer with id {}, does not exist", fileId);
+        return false;
     }
 
 
@@ -499,6 +502,8 @@ void FileChannel::cancelTransfer(tego_attachment_id_t fileId)
     Data::File::Packet packet;
     packet.set_allocated_file_cancel_notification(notification.release());
     Channel::sendMessage(packet);
+
+    return true;
 }
 
 bool FileChannel::sendNextChunk(file_id_t id)

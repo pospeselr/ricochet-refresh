@@ -55,13 +55,15 @@ public:
     bool sendFileWithId(QString file_url, QString file_hash, QDateTime time, file_id_t id);
     void acceptFile(tego_attachment_id_t fileId, const std::string& dest);
     void rejectFile(tego_attachment_id_t fileId);
-    void cancelTransfer(tego_attachment_id_t fileId);
+    bool cancelTransfer(tego_attachment_id_t fileId);
 
 signals:
     void fileRequestReceived(file_id_t id, QString fileName, size_t fileSize, tego_file_hash_t);
     void fileReceived(const QDateTime &time, file_id_t id);
     void fileAcknowledged(file_id_t id, tego_bool_t accepted);
     void fileTransferProgress(file_id_t id, tego_attachment_direction_t direction, uint64_t bytesTransmitted, uint64_t bytesTotal);
+    void fileTransferCancelled(file_id_t id, tego_attachment_direction_t direction);
+    void fileTransferFinished(file_id_t id, tego_attachment_direction_t direction);
 
 protected:
     virtual bool allowInboundChannelRequest(const Data::Control::OpenChannel *request, Data::Control::ChannelResult *result);
@@ -84,7 +86,7 @@ private:
         std::ifstream stream;
 
         inline bool finished() const { return offset == size; }
-        void cancel();
+        void cancel(FileChannel* channel);
     };
 
     struct incoming_transfer_record
@@ -107,7 +109,7 @@ private:
 
         std::string partial_dest() const;
         void open_stream(const std::string& dest);
-        void cancel();
+        void cancel(FileChannel* channel);
     };
     // 63 kb, max packet size is UINT16_MAX (ak 65535, 64k - 1) so leave space for other data
     constexpr static qint64 FileMaxChunkSize = 63*1024;

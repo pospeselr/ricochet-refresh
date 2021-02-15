@@ -152,6 +152,22 @@ namespace tego
         delete user;
     }
 
+    void callback_registry::cleanup_attachment_cancelled_args(
+        tego_user_id_t* user,
+        tego_attachment_id_t,
+        tego_attachment_direction_t)
+    {
+        delete user;
+    }
+
+    void callback_registry::cleanup_attachment_complete_args(
+        tego_user_id_t* user,
+        tego_attachment_id_t,
+        tego_attachment_direction_t)
+    {
+        delete user;
+    }
+
     void callback_registry::cleanup_user_status_changed_args(
         tego_user_id_t* user,
         tego_user_status_t)
