@@ -49,8 +49,6 @@ class FileChannel : public Channel
 public:
     typedef quint32 file_id_t;
     typedef quint32 chunk_id_t;
-    // 63 kb, max packet size is UINT16_MAX (ak 65535, 64k - 1) so leave space for other data
-    constexpr static qint64 FileMaxChunkSize = 63*1024;
 
     explicit FileChannel(Direction direction, Connection *connection);
 
@@ -83,10 +81,6 @@ private:
         chunk_id_t cur_chunk;   // rename to current chunk index or something (or do our math in terms of offsets instead?)
         std::ifstream stream;
 
-        // intermediate buffer we load chunks from disk into
-        // in theory could be a single buffer on FileChannel (since work only happens on one thread)
-        std::unique_ptr<char[]> chunkBuffer;
-
         inline bool finished() const { return offset == size; }
     };
 
@@ -106,6 +100,12 @@ private:
         inline std::string partial_dest() const;
         void open_stream(const std::string& dest);
     };
+    // 63 kb, max packet size is UINT16_MAX (ak 65535, 64k - 1) so leave space for other data
+    constexpr static qint64 FileMaxChunkSize = 63*1024;
+    // intermediate buffer we load chunks from disk into
+    // each access to this buffer happens on the same thread, and only within the scope of a function
+    // so no need to worry about synchronization or sharing between file transfers
+    char chunkBuffer[FileMaxChunkSize];
 
     // file transfers we are sending
     std::map<file_id_t, outgoing_transfer_record> outgoingTransfers;

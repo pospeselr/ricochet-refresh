@@ -49,7 +49,6 @@ FileChannel::outgoing_transfer_record::outgoing_transfer_record(const std::strin
 , offset(0)
 , cur_chunk(0)
 , stream(filePath, std::ios::in | std::ios::binary)
-, chunkBuffer(std::make_unique<char[]>(FileMaxChunkSize))
 { }
 
 FileChannel::incoming_transfer_record::incoming_transfer_record(qint64 fileSize, const std::string& fileHash, chunk_id_t chunkCount)
@@ -434,22 +433,20 @@ bool FileChannel::sendNextChunk(file_id_t id)
     }
     auto& otr = it->second;
 
-    auto& chunkBuffer = otr.chunkBuffer;
-
     // make sure our offset and the stream offset agree
     Q_ASSERT(otr.finished() == false);
     Q_ASSERT(otr.offset == otr.stream.tellg());
     Q_ASSERT(otr.offset == otr.cur_chunk * FileMaxChunkSize);
 
     // read the next chunk to our buffer, and update our offset
-    otr.stream.read(chunkBuffer.get(), FileMaxChunkSize);
+    otr.stream.read(this->chunkBuffer, FileMaxChunkSize);
     const auto chunkSize = otr.stream.gcount();
     otr.offset += chunkSize;
 
     // calculate this chunks hash
     tego_file_hash chunkHash(
-        reinterpret_cast<uint8_t const*>(chunkBuffer.get()),
-        reinterpret_cast<uint8_t const*>(chunkBuffer.get() + chunkSize));
+        reinterpret_cast<uint8_t const*>(std::begin(chunkBuffer)),
+        reinterpret_cast<uint8_t const*>(std::begin(chunkBuffer) + chunkSize));
 
     // build our chunk
     auto chunk = std::make_unique<Data::File::FileChunk>();
@@ -457,7 +454,7 @@ bool FileChannel::sendNextChunk(file_id_t id)
     chunk->set_file_id(id);
     chunk->set_chunk_id(otr.cur_chunk);
     chunk->set_chunk_size(chunkSize);
-    chunk->set_chunk_data(chunkBuffer.get(), chunkSize);
+    chunk->set_chunk_data(std::begin(chunkBuffer), chunkSize);
 
     Data::File::Packet packet;
     packet.set_allocated_file_chunk(chunk.release());
