@@ -1212,16 +1212,45 @@ typedef enum
  * @param context : the current tego context
  * @param userId : the user sending/receiving the attachment
  * @param attachmentId : the attachment associated with this callback
+ * @param attachmentDirection : the direction this attachment is going
  * @param bytesComplete : number of bytes sent/received
  * @param bytesTotal : the total size of the attachment
  */
-typedef void(*tego_attachment_progress_callback_t)(
+typedef void (*tego_attachment_progress_callback_t)(
     tego_context_t* context,
     const tego_user_id_t* userId,
     tego_attachment_id_t attachmentId,
     tego_attachment_direction_t attachmentDirection,
     uint64_t bytesComplete,
     uint64_t bytesTotal);
+
+/*
+ * Callback fired when an attachment transfer has been cancelled
+ *
+ * @param context : the current tego context
+ * @param userId : the user sending/receivintg the attachment
+ * @param attachmentId : the attachment associated with this callback
+ * @param attachmentDirection : the direction this attachment was going
+ */
+typedef void (*tego_attachment_cancelled_callback_t)(
+    tego_context_t* context,
+    const tego_user_id_t* userId,
+    tego_attachment_id_t attachmentId,
+    tego_attachment_direction_t attachmentDirection);
+
+/*
+ * Callback fired when an attachment transfer has completed
+ *
+ * @param context : the current tego context
+ * @param userId : the user sending/receivintg the attachment
+ * @param attachmentId : the attachment associated with this callback
+ * @param attachmentDirection : the direction this attachment was going
+ */
+typedef void (*tego_attachment_complete_callback_t)(
+    tego_context_t* context,
+    const tego_user_id_t* userId,
+    tego_attachment_id_t attachmentId,
+    tego_attachment_direction_t attachmentDirection);
 
 /*
  * Callback fired when a user's status changes
@@ -1323,6 +1352,16 @@ void tego_context_set_attachment_request_acknowledged_callback(
 void tego_context_set_attachment_progress_callback(
     tego_context_t* context,
     tego_attachment_progress_callback_t,
+    tego_error_t** error);
+
+void tego_context_set_attachment_cancelled_callback(
+    tego_context_t* context,
+    tego_attachment_cancelled_callback_t,
+    tego_error_t** error);
+
+void tego_context_set_attachment_complete_callback(
+    tego_context_t* context,
+    tego_attachment_complete_callback_t,
     tego_error_t** error);
 
 void tego_context_set_user_status_changed_callback(
