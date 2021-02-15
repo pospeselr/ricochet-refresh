@@ -39,6 +39,7 @@ message Packet {
     optional FileChunk file_chunk = 2;
     optional FileChunkAck file_chunk_ack = 3;
     optional FileHeaderAck file_header_ack = 4;
+    optional FileCancelNotification file_cancel_notification = 5;
 }
 
 message FileHeader {
@@ -71,4 +72,8 @@ message FileChunkAck {
 message FileHeaderAck {
     optional uint64 file_id = 1;
     optional bool accepted = 2 [default = false];
+}
+
+message FileCancelNotification {
+    required uint64 file_id = 1;
 }

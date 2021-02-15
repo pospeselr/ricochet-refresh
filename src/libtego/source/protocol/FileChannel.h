@@ -73,21 +73,29 @@ private:
     struct outgoing_transfer_record
     {
         outgoing_transfer_record(
+            file_id_t id,
             const std::string& filePath,
             qint64 fileSize);
 
+        const file_id_t id;
         const qint64 size;
         qint64 offset;
         chunk_id_t cur_chunk;   // rename to current chunk index or something (or do our math in terms of offsets instead?)
         std::ifstream stream;
 
         inline bool finished() const { return offset == size; }
+        void cancel();
     };
 
     struct incoming_transfer_record
 	{
-        incoming_transfer_record(qint64 fileSize, const std::string& fileHash, chunk_id_t chunkCount);
+        incoming_transfer_record(
+            file_id_t id,
+            qint64 fileSize,
+            const std::string& fileHash,
+            chunk_id_t chunkCount);
 
+        const file_id_t id;
         const qint64 size;
         chunk_id_t cur_chunk;
         chunk_id_t missing_chunks;
@@ -97,8 +105,9 @@ private:
         // need to write and read
         std::fstream stream;
 
-        inline std::string partial_dest() const;
+        std::string partial_dest() const;
         void open_stream(const std::string& dest);
+        void cancel();
     };
     // 63 kb, max packet size is UINT16_MAX (ak 65535, 64k - 1) so leave space for other data
     constexpr static qint64 FileMaxChunkSize = 63*1024;
@@ -116,6 +125,7 @@ private:
     void handleFileChunk(const Data::File::FileChunk &message);
     void handleFileChunkAck(const Data::File::FileChunkAck &message);
     void handleFileHeaderAck(const Data::File::FileHeaderAck &message);
+    void handleFileCancelNotification(const Data::File::FileCancelNotification &message);
     bool sendNextChunk(file_id_t id);
 };
 

@@ -44,15 +44,33 @@ using tego::g_globals;
 
 using namespace Protocol;
 
-FileChannel::outgoing_transfer_record::outgoing_transfer_record(const std::string& filePath, qint64 fileSize)
-: size(fileSize)
+// Outgoing Transfer Record
+
+FileChannel::outgoing_transfer_record::outgoing_transfer_record(
+    file_id_t id,
+    const std::string& filePath,
+    qint64 fileSize)
+: id(id)
+, size(fileSize)
 , offset(0)
 , cur_chunk(0)
 , stream(filePath, std::ios::in | std::ios::binary)
 { }
 
-FileChannel::incoming_transfer_record::incoming_transfer_record(qint64 fileSize, const std::string& fileHash, chunk_id_t chunkCount)
-: size(fileSize)
+void FileChannel::outgoing_transfer_record::cancel()
+{
+    // TODO: emit signal
+}
+
+// Incoming Transfer Record
+
+FileChannel::incoming_transfer_record::incoming_transfer_record(
+    file_id_t id,
+    qint64 fileSize,
+    const std::string& fileHash,
+    chunk_id_t chunkCount)
+: id(id)
+, size(fileSize)
 , cur_chunk(0)
 , missing_chunks(chunkCount)
 , sha3_512(fileHash)
@@ -75,6 +93,21 @@ void FileChannel::incoming_transfer_record::open_stream(const std::string& dest)
     this->stream.open(this->partial_dest(), std::ios::in | std::ios::out | std::ios::trunc | std::ios::binary);
     TEGO_THROW_IF_FALSE(this->stream.is_open());
 }
+
+void FileChannel::incoming_transfer_record::cancel()
+{
+    // try our best to remove the partial file
+    this->stream.close();
+
+    const auto partial = this->partial_dest();
+    // ignore error of remove, fails if we've already renamed the file
+    // don't erase already transferred file
+    QFile::remove(QString::fromStdString(partial));
+
+    // TODO: emit signal
+}
+
+// File Channel
 
 FileChannel::FileChannel(Direction direction, Connection *connection)
     : Channel(QStringLiteral("im.ricochet.file-transfer"), direction, connection)
@@ -137,7 +170,10 @@ void FileChannel::receivePacket(const QByteArray &packet)
         handleFileChunkAck(message.file_chunk_ack());
     } else if (message.has_file_header_ack()) {
         handleFileHeaderAck(message.file_header_ack());
-    } else {
+    } else if (message.has_file_cancel_notification()) {
+        handleFileCancelNotification(message.file_cancel_notification());
+    }
+    else {
         qWarning() << "Unrecognized file packet on " << type();
         closeChannel();
     }
@@ -168,7 +204,7 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
         qWarning() << "Rejected file header with name containing '/'";
     } else {
         const auto id = message.file_id();
-        incoming_transfer_record ifr(message.size(), message.sha3_512(), message.chunk_count());
+        incoming_transfer_record ifr(id, message.size(), message.sha3_512(), message.chunk_count());
 
         // TODO: change the protocol to send a byte buffer of the exact size?
         TEGO_THROW_IF_FALSE_MSG(ifr.sha3_512.size() == (tego_file_hash::STRING_SIZE - 1));
@@ -324,8 +360,30 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
     }
     else
     {
-        // receiver rejectd our transfer request, so erase it from our records
+        // receiver rejected our transfer request, so erase it from our records
         outgoingTransfers.erase(it);
+    }
+}
+
+void FileChannel::handleFileCancelNotification(const Data::File::FileCancelNotification &message)
+{
+    const auto id = message.file_id();
+
+    // first look for an outgoing transfer with this id and cancel, erase it
+    if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
+    {
+        it->second.cancel();
+        outgoingTransfers.erase(it);
+    }
+    // next look for an incoming transfer with this id and cancel, erase it
+    else if (auto it = incomingTransfers.find(id); it != incomingTransfers.end())
+    {
+        it->second.cancel();
+        incomingTransfers.erase(it);
+    }
+    else
+    {
+        qWarning() << "received cancel request for unknown transfer:" << id;
     }
 }
 
@@ -356,7 +414,7 @@ bool FileChannel::sendFileWithId(QString file_uri,
     const auto file_chunks = fsize_to_chunks(file_size);
 
     // create our record
-    outgoing_transfer_record qf(file_path, file_size);
+    outgoing_transfer_record qf(file_id, file_path, file_size);
     if (!qf.stream.is_open())
     {
         qWarning() << "Failed to open file for sending header";
@@ -415,7 +473,32 @@ void FileChannel::rejectFile(tego_attachment_id_t fileId)
 
 void FileChannel::cancelTransfer(tego_attachment_id_t fileId)
 {
+    // verify the transfer exists in our system
+    if (auto it = incomingTransfers.find(fileId); it != incomingTransfers.end())
+    {
+        it->second.cancel();
+        incomingTransfers.erase(it);
 
+    }
+    else if (auto it = outgoingTransfers.find(fileId); it != outgoingTransfers.end())
+    {
+        it->second.cancel();
+        outgoingTransfers.erase(it);
+    }
+    else
+    {
+        // error out if we have no record of this transfer
+        TEGO_THROW_MSG("Cannot cancel fiel transfer with id {}, does not exist", fileId);
+    }
+
+
+    // finally send cancel notification to remote user
+    auto notification = std::make_unique<Data::File::FileCancelNotification>();
+    notification->set_file_id(fileId);
+
+    Data::File::Packet packet;
+    packet.set_allocated_file_cancel_notification(notification.release());
+    Channel::sendMessage(packet);
 }
 
 bool FileChannel::sendNextChunk(file_id_t id)
