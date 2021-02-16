@@ -96,6 +96,11 @@ namespace shims
         emit this->contactDeleted(this);
     }
 
+    void ContactUser::sendFile()
+    {
+        logger::println("send file clicked");
+    }
+
     std::unique_ptr<tego_user_id_t> ContactUser::toTegoUserId() const
     {
         logger::println("serviceId : {}", this->serviceId);
