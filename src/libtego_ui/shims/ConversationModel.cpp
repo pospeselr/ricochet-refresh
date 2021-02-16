@@ -130,65 +130,17 @@ namespace shims
             return;
         }
 
-        // convert the 'contactId' to tego_user_id_t
-        auto ricochetId = contactUser->getContactID().right(TEGO_V3_ONION_SERVICE_ID_LENGTH).toUtf8();
-
-        std::unique_ptr<tego_v3_onion_service_id_t> serviceId;
-        tego_v3_onion_service_id_from_string(
-            tego::out(serviceId),
-            ricochetId.data(),
-            ricochetId.size(),
-            tego::throw_on_error());
-
-        std::unique_ptr<tego_user_id_t> userId;
-        tego_user_id_from_v3_onion_service_id(
-            tego::out(userId),
-            serviceId.get(),
-            tego::throw_on_error());
+        const auto userId = this->contactUser->toTegoUserId();
+        tego_message_id_t messageId = 0;
 
         // send message and save off the id associated with it
-
-        tego_message_id_t messageId = 0;
-		// todo: this just moves the file uri logic out of libtego and into the frontend
-		// replace this with real UX please
-        if (utf8Str.startsWith("file://"))
-        {
-            try
-            {
-                tego_attachment_id_t attachmentId;
-                std::unique_ptr<tego_file_hash_t> fileHash;
-                const auto path = utf8Str.mid(tego::static_strlen("file://"));
-                tego_context_send_attachment_request(
-                    context,
-                    userId.get(),
-                    path.data(),
-                    path.size(),
-                    &attachmentId,
-                    tego::out(fileHash),
-                    tego::throw_on_error());
-
-                size_t hashSize = tego_file_hash_string_size(fileHash.get(), tego::throw_on_error());
-                std::string hashString(hashSize, 0);
-                tego_file_hash_to_string(fileHash.get(), hashString.data(), hashSize, tego::throw_on_error());
-
-                messageId = attachmentId;
-            }
-            catch(const std::runtime_error& err)
-            {
-                logger::println("Caught exception: {}", std::string(err.what()));
-                return;
-            }
-        }
-        else
-        {
-             tego_context_send_message(
-                context,
-                userId.get(),
-                utf8Str.data(),
-                utf8Str.size(),
-                &messageId,
-                tego::throw_on_error());
-        }
+        tego_context_send_message(
+            context,
+            userId.get(),
+            utf8Str.data(),
+            utf8Str.size(),
+            &messageId,
+            tego::throw_on_error());
 
         // store data locally for UI
         MessageData md;
@@ -200,6 +152,45 @@ namespace shims
         this->beginInsertRows(QModelIndex(), 0, 0);
         this->messages.prepend(std::move(md));
         this->endInsertRows();
+    }
+
+    void ConversationModel::sendFile()
+    {
+        auto fileName =
+            QFileDialog::getOpenFileName(
+                nullptr,
+                tr("Open File"),
+                QDir::homePath(),
+                nullptr);
+
+        if (!fileName.isEmpty())
+        {
+            auto userIdentity = shims::UserIdentity::userIdentity;
+            auto context = userIdentity->getContext();
+            const auto path = fileName.toUtf8();
+            const auto userId = this->contactUser->toTegoUserId();
+            tego_attachment_id_t attachmentId;
+            std::unique_ptr<tego_file_hash_t> fileHash;
+
+            try
+            {
+                tego_context_send_attachment_request(
+                    context,
+                    userId.get(),
+                    path.data(),
+                    path.size(),
+                    &attachmentId,
+                    tego::out(fileHash),
+                    tego::throw_on_error());
+
+                logger::println("send file request id : {}, hash : {}", attachmentId, tego::to_string(fileHash.get()));
+            }
+            catch(const std::runtime_error& err)
+            {
+                logger::println("error sending file request: {}", err.what());
+                qWarning() << err.what();
+            }
+        }
     }
 
     void ConversationModel::clear()

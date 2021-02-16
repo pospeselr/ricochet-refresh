@@ -98,7 +98,7 @@ namespace shims
 
     void ContactUser::sendFile()
     {
-        logger::println("send file clicked");
+        this->conversationModel->sendFile();
     }
 
     std::unique_ptr<tego_user_id_t> ContactUser::toTegoUserId() const

@@ -40,6 +40,8 @@ namespace shims
         int getUnreadCount() const;
         Q_INVOKABLE void resetUnreadCount();
 
+        void sendFile();
+
         void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
         void messageAcknowledged(tego_message_id_t messageId, bool accepted);
     public slots:
