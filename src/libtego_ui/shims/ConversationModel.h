@@ -18,7 +18,9 @@ namespace shims
             IsOutgoingRole,
             StatusRole,
             SectionRole,
-            TimespanRole
+            TimespanRole,
+            TypeRole,
+            TransferRole,
         };
 
         enum MessageStatus {
@@ -56,13 +58,26 @@ namespace shims
 
         shims::ContactUser* contactUser = nullptr;
 
+        enum MessageDataType
+        {
+            InvalidMessage = -1,
+            TextMessage,
+            TransferMessage,
+        };
+
         struct MessageData
         {
+            MessageDataType type = InvalidMessage;
             QString text = {};
             QDateTime time = {};
             tego_message_id_t identifier = 0;
             MessageStatus status = None;
             quint8 attemptCount = 0;
+            // file transfer data
+            QString fileName = {};
+            qint64 fileSize = 0;
+            QString fileHash = {};
+            tego_attachment_id_t transferId = 0;
         };
 
         QList<MessageData> messages;

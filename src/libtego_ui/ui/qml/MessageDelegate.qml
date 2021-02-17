@@ -84,16 +84,28 @@ Column {
         Rectangle
         {
             id: message
-            width : textField.width
-            height : textField.height
+
+            property Item childItem: {
+                if (model.type == "text")
+                {
+                    return textField;
+                }
+                else if (model.type =="transfer")
+                {
+                    return transferField;
+                }
+            }
+
+            width: childItem.width
+            height: childItem.height
             x: Math.round((background.width - width) / 2)
             y: 6
 
             color: "transparent"
 
-
             TextEdit {
                 id: textField
+                visible: parent.childItem === this
                 width: Math.min(implicitWidth, background.__maxWidth)
                 height: contentHeight
 
@@ -125,6 +137,15 @@ Column {
 
                     onClicked: delegate.showContextMenu(parent.hoveredLink)
                 }
+            }
+
+            Rectangle {
+                id: transferField
+                visible: parent.childItem === this
+                width: 64
+                height: 64
+
+                color: "magenta"
             }
         }
     }

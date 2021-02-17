@@ -33,6 +33,8 @@ namespace shims
         roles[StatusRole] = "status";
         roles[SectionRole] = "section";
         roles[TimespanRole] = "timespan";
+        roles[TypeRole] = "type";
+        roles[TransferRole] = "transfer";
         return roles;
     }
 
@@ -51,7 +53,16 @@ namespace shims
         const MessageData &message = messages[index.row()];
 
         switch (role) {
-            case Qt::DisplayRole: return message.text;
+            case Qt::DisplayRole:
+                if (message.type == TextMessage)
+                {
+                    return message.text;
+                }
+                else
+                {
+                    return QStringLiteral("not a text message");
+                }
+
             case TimestampRole: return message.time;
             case IsOutgoingRole: return message.status != Received;
             case StatusRole: return message.status;
@@ -75,6 +86,27 @@ namespace shims
                     return messages[index.row() + 1].time.secsTo(messages[index.row()].time);
                 else
                     return -1;
+            }
+            case TypeRole: {
+                if (message.type == TextMessage) {
+                    return QStringLiteral("text");
+                }
+                else if (message.type == TransferMessage) {
+                    return QStringLiteral("transfer");
+                }
+                else {
+                    return QStringLiteral("invalid");
+                }
+            case TransferRole:
+                if (message.type == TransferMessage)
+                {
+                    QVariantMap transfer;
+                    transfer["fileName"] = message.fileName;
+                    transfer["fileSize"] = message.fileSize;
+                    transfer["fileHash"] = message.fileHash;
+                    transfer["transferId"] = message.transferId;
+                    return transfer;
+                }
             }
         }
 
@@ -144,6 +176,7 @@ namespace shims
 
         // store data locally for UI
         MessageData md;
+        md.type = TextMessage;
         md.text = text;
         md.time = QDateTime::currentDateTime();
         md.identifier = messageId;
@@ -184,6 +217,18 @@ namespace shims
                     tego::throw_on_error());
 
                 logger::println("send file request id : {}, hash : {}", attachmentId, tego::to_string(fileHash.get()));
+
+                MessageData md;
+                md.type = TransferMessage;
+                md.fileName = fileName;
+                // todo: maybe update API to spit out the file size?
+                md.fileSize = 0;
+                md.fileHash = QString::fromStdString(tego::to_string(fileHash.get()));
+                md.transferId = attachmentId;
+
+                this->beginInsertRows(QModelIndex(), 0, 0);
+                this->messages.prepend(std::move(md));
+                this->endInsertRows();
             }
             catch(const std::runtime_error& err)
             {
@@ -215,6 +260,7 @@ namespace shims
         logger::println(" time : {}", timestamp.toString());
 
         MessageData md;
+        md.type = TextMessage;
         md.text = text;
         md.time = timestamp;
         md.identifier = messageId;
