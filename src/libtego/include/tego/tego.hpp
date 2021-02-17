@@ -49,7 +49,7 @@ namespace tego
     //
     // to_string methods to convert various tego types to human readable strings
     //
-    inline std::string to_string(tego_file_hash_t* fileHash)
+    inline std::string to_string(tego_file_hash_t const* fileHash)
     {
 
         if (fileHash == nullptr) return {};
