@@ -53,8 +53,8 @@ Column {
 
     Rectangle {
         id: background
-        width: Math.max(30, textField.width + 12)
-        height: textField.height + 12
+        width: Math.max(30, message.width + 12)
+        height: message.height + 12
         x: model.isOutgoing ? parent.width - width - 11 : 10
 
         property int __maxWidth: parent.width * 0.8
@@ -81,40 +81,50 @@ Column {
             Behavior on opacity { NumberAnimation { } }
         }
 
-        TextEdit {
-            id: textField
-            width: Math.min(implicitWidth, background.__maxWidth)
-            height: contentHeight
-            x: Math.round((parent.width - width) / 2)
+        Rectangle
+        {
+            id: message
+            width : textField.width
+            height : textField.height
+            x: Math.round((background.width - width) / 2)
             y: 6
 
-            renderType: Text.NativeRendering
-            textFormat: TextEdit.RichText
-            selectionColor: palette.highlight
-            selectedTextColor: palette.highlightedText
-            font.pointSize: styleHelper.pointSize
+            color: "transparent"
 
-            wrapMode: TextEdit.Wrap
-            readOnly: true
-            selectByMouse: true
-            text: LinkedText.parsed(model.text)
 
-            onLinkActivated: {
-                textField.deselect()
-                delegate.showContextMenu(link)
-            }
+            TextEdit {
+                id: textField
+                width: Math.min(implicitWidth, background.__maxWidth)
+                height: contentHeight
 
-            // Workaround an incomplete fix for QTBUG-31646
-            Component.onCompleted: {
-                if (textField.hasOwnProperty('linkHovered'))
-                    textField.linkHovered.connect(function() { })
-            }
-            
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.RightButton
+                renderType: Text.NativeRendering
+                textFormat: TextEdit.RichText
+                selectionColor: palette.highlight
+                selectedTextColor: palette.highlightedText
+                font.pointSize: styleHelper.pointSize
 
-                onClicked: delegate.showContextMenu(parent.hoveredLink)
+                wrapMode: TextEdit.Wrap
+                readOnly: true
+                selectByMouse: true
+                text: LinkedText.parsed(model.text)
+
+                onLinkActivated: {
+                    textField.deselect()
+                    delegate.showContextMenu(link)
+                }
+
+                // Workaround an incomplete fix for QTBUG-31646
+                Component.onCompleted: {
+                    if (textField.hasOwnProperty('linkHovered'))
+                        textField.linkHovered.connect(function() { })
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.RightButton
+
+                    onClicked: delegate.showContextMenu(parent.hoveredLink)
+                }
             }
         }
     }
