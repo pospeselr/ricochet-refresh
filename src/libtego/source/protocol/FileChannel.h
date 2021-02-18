@@ -58,9 +58,9 @@ public:
     bool cancelTransfer(tego_attachment_id_t fileId);
 
 signals:
-    void fileRequestReceived(file_id_t id, QString fileName, size_t fileSize, tego_file_hash_t);
-    void fileReceived(const QDateTime &time, file_id_t id);
-    void fileAcknowledged(file_id_t id, tego_bool_t accepted);
+    void fileTransferRequestReceived(file_id_t id, QString fileName, size_t fileSize, tego_file_hash_t);
+    void fileTransferAcknowledged(file_id_t id, bool ack);
+    void fileTransferRequestResponded(file_id_t id, tego_attachment_response_t response);
     void fileTransferProgress(file_id_t id, tego_attachment_direction_t direction, uint64_t bytesTransmitted, uint64_t bytesTotal);
     void fileTransferCancelled(file_id_t id, tego_attachment_direction_t direction);
     void fileTransferFinished(file_id_t id, tego_attachment_direction_t direction);
@@ -124,9 +124,10 @@ private:
     std::map<file_id_t, incoming_transfer_record> incomingTransfers;
 
     void handleFileHeader(const Data::File::FileHeader &message);
+    void handleFileHeaderAck(const Data::File::FileHeaderAck &message);
+    void handleFileHeaderResponse(const Data::File::FileHeaderResponse &message);
     void handleFileChunk(const Data::File::FileChunk &message);
     void handleFileChunkAck(const Data::File::FileChunkAck &message);
-    void handleFileHeaderAck(const Data::File::FileHeaderAck &message);
     void handleFileCancelNotification(const Data::File::FileCancelNotification &message);
     bool sendNextChunk(file_id_t id);
 };

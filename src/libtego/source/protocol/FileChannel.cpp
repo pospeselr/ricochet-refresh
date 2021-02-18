@@ -166,16 +166,17 @@ void FileChannel::receivePacket(const QByteArray &packet)
 
     if (message.has_file_header()) {
         handleFileHeader(message.file_header());
+    } else if (message.has_file_header_ack()) {
+        handleFileHeaderAck(message.file_header_ack());
     } else if (message.has_file_chunk()) {
         handleFileChunk(message.file_chunk());
     } else if (message.has_file_chunk_ack()) {
         handleFileChunkAck(message.file_chunk_ack());
-    } else if (message.has_file_header_ack()) {
-        handleFileHeaderAck(message.file_header_ack());
+    } else if (message.has_file_header_response()) {
+        handleFileHeaderResponse(message.file_header_response());
     } else if (message.has_file_cancel_notification()) {
         handleFileCancelNotification(message.file_cancel_notification());
-    }
-    else {
+    } else {
         qWarning() << "Unrecognized file packet on " << type();
         closeChannel();
     }
@@ -183,6 +184,9 @@ void FileChannel::receivePacket(const QByteArray &packet)
 
 void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
 {
+    auto response = std::make_unique<Data::File::FileHeaderAck>();
+    response->set_accepted(false);
+
     if (direction() != Inbound) {
         qWarning() << "Rejected inbound message (FileHeader) on an outbound channel";
     } else if (!message.has_size() || !message.has_chunk_count()) {
@@ -214,10 +218,76 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
         fileHash.hex = ifr.sha3_512;
 
         // signal the file transfer request
-        emit this->fileRequestReceived(id, QString::fromStdString(message.name()), ifr.size, std::move(fileHash));
+        emit this->fileTransferRequestReceived(id, QString::fromStdString(message.name()), ifr.size, std::move(fileHash));
 
         incomingTransfers.insert({id, std::move(ifr)});
+
+        response->set_file_id(id);
+        response->set_accepted(true);
     }
+
+    // finally send our ack for the header
+    Data::File::Packet packet;
+    packet.set_allocated_file_header_ack(response.release());
+    Channel::sendMessage(packet);
+}
+
+void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
+{
+    if (direction() != Outbound) {
+        qWarning() << "Rejected inbound acknowledgement on an inbound file channel";
+        closeChannel();
+        return;
+    }
+
+    if (!message.has_file_id()) {
+        qDebug() << "File acknowledgement doesn't have a file ID we understand";
+        closeChannel();
+        return;
+    }
+
+    auto id = message.file_id();
+    if (outgoingTransfers.contains(id))
+    {
+        emit this->fileTransferAcknowledged(id, message.accepted());
+    } else {
+        qDebug() << "Received chat acknowledgement for unknown message" << id;
+    }
+}
+
+void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse &message)
+{
+    if (direction() != Outbound) {
+        qWarning() << "Rejected inbound message on inbound file channel";
+        return;
+    }
+
+    const auto id = message.file_id();
+
+    auto it = outgoingTransfers.find(id);
+    if (it == outgoingTransfers.end())
+    {
+        qWarning() << "recieved response for a file header we never sent";
+        return;
+    }
+
+    /* start the transfer at chunk 0 */
+    const auto response = message.response();
+    if (response == tego_attachment_response_accept)
+    {
+        sendNextChunk(id);
+    }
+    else
+    {
+        if (response != tego_attachment_response_reject)
+        {
+            qWarning() << "received unknown response for file header";
+        }
+        // receiver rejected our transfer request, so erase it from our records
+        outgoingTransfers.erase(it);
+    }
+
+    emit this->fileTransferRequestResponded(message.file_id(), static_cast<tego_attachment_response_t>(response));
 }
 
 void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
@@ -341,34 +411,6 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     }
 }
 
-void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
-{
-    if (direction() != Outbound) {
-        qWarning() << "Rejected inbound message on inbound file channel";
-        return;
-    }
-
-    const auto id = message.file_id();
-
-    auto it = outgoingTransfers.find(id);
-    if (it == outgoingTransfers.end())
-    {
-        qWarning() << "recieved ack for a file header we never sent";
-        return;
-    }
-
-    /* start the transfer at chunk 0 */
-    if (message.accepted())
-    {
-        sendNextChunk(id);
-    }
-    else
-    {
-        // receiver rejected our transfer request, so erase it from our records
-        outgoingTransfers.erase(it);
-    }
-}
-
 void FileChannel::handleFileCancelNotification(const Data::File::FileCancelNotification &message)
 {
     const auto id = message.file_id();
@@ -449,12 +491,12 @@ void FileChannel::acceptFile(tego_attachment_id_t fileId, const std::string& des
     auto& itr = it->second;
     itr.open_stream(dest);
 
-    auto response = std::make_unique<Data::File::FileHeaderAck>();
-    response->set_accepted(true);
+    auto response = std::make_unique<Data::File::FileHeaderResponse>();
+    response->set_response(tego_attachment_response_accept);
     response->set_file_id(fileId);
 
     Data::File::Packet packet;
-    packet.set_allocated_file_header_ack(response.release());
+    packet.set_allocated_file_header_response(response.release());
     Channel::sendMessage(packet);
 }
 
@@ -466,12 +508,12 @@ void FileChannel::rejectFile(tego_attachment_id_t fileId)
     // remove the incoming_transfer_record from our list on reject
     incomingTransfers.erase(it);
 
-    auto response = std::make_unique<Data::File::FileHeaderAck>();
-    response->set_accepted(false);
+    auto response = std::make_unique<Data::File::FileHeaderResponse>();
+    response->set_response(tego_attachment_response_reject);
     response->set_file_id(fileId);
 
     Data::File::Packet packet;
-    packet.set_allocated_file_header_ack(response.release());
+    packet.set_allocated_file_header_response(response.release());
     Channel::sendMessage(packet);
 }
 

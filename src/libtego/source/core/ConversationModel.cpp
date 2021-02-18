@@ -79,7 +79,7 @@ void ConversationModel::setContact(ContactUser *contact)
             {
                 connect(
                     fc,
-                    &Protocol::FileChannel::fileRequestReceived,
+                    &Protocol::FileChannel::fileTransferRequestReceived,
                     [this](tego_attachment_id_t id, const QString& filename, size_t fileSize, tego_file_hash_t hash) -> void
                     {
                         // user id
@@ -103,6 +103,30 @@ void ConversationModel::setContact(ContactUser *contact)
                             rawFilenameLength,
                             fileSize,
                             heapHash.release());
+                    });
+
+                connect(
+                    fc,
+                    &Protocol::FileChannel::fileTransferAcknowledged,
+                    [this](tego_attachment_id_t id, bool ack)
+                    {
+                        auto userId = this->contact()->toTegoUserId();
+                        g_globals.context->callback_registry_.emit_attachment_request_acknowledged(
+                            userId.release(),
+                            id,
+                            ack ? TEGO_TRUE : TEGO_FALSE);
+                    });
+
+                connect(
+                    fc,
+                    &Protocol::FileChannel::fileTransferRequestResponded,
+                    [this](tego_attachment_id_t id, tego_attachment_response_t response)
+                    {
+                        auto userId = this->contact()->toTegoUserId();
+                        g_globals.context->callback_registry_.emit_attachment_request_response_received(
+                            userId.release(),
+                            id,
+                            response);
                     });
 
                 connect(

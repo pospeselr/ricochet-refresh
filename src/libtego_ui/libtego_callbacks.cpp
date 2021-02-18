@@ -495,6 +495,8 @@ namespace
         tego_attachment_id_t attachmentId,
         tego_bool_t ack)
     {
+        logger::println("attachmetn request ack'd id : {} ack : {}", attachmentId, ack);
+
         // receiver
         QString receiverId = tegoUserIdToContactId(receiver);
 
@@ -511,13 +513,16 @@ namespace
         tego_context_t* context,
         tego_user_id_t const* receiver,
         tego_attachment_id_t attachmentId,
-        tego_attachment_response_t accepted)
+        tego_attachment_response_t response)
     {
+        logger::println("attachment response: {}", response == tego_attachment_response_accept ? "accept" : "reject");
+
         // receiver
         QString receiverId = tegoUserIdToContactId(receiver);
 
         push_task([=]() -> void
         {
+
         });
     }
 

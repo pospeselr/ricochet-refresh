@@ -36,10 +36,11 @@ package Protocol.Data.File;
 
 message Packet {
     optional FileHeader file_header = 1;
-    optional FileChunk file_chunk = 2;
-    optional FileChunkAck file_chunk_ack = 3;
-    optional FileHeaderAck file_header_ack = 4;
-    optional FileCancelNotification file_cancel_notification = 5;
+    optional FileHeaderAck file_header_ack = 2;
+    optional FileHeaderResponse file_header_response = 3;
+    optional FileChunk file_chunk = 4;
+    optional FileChunkAck file_chunk_ack = 5;
+    optional FileCancelNotification file_cancel_notification = 6;
 }
 
 message FileHeader {
@@ -49,6 +50,16 @@ message FileHeader {
     optional bytes sha3_512 = 4;
     optional uint32 chunk_count = 5;
     optional int32 time_delta = 6;
+}
+
+message FileHeaderAck {
+    optional uint64 file_id = 1;
+    optional bool accepted = 2 [default = false];
+}
+
+message FileHeaderResponse {
+    required uint32 file_id = 1;
+    required int32 response = 2;
 }
 
 /* When sending files, they should be split into chunks to avoid high latency.
@@ -67,11 +78,6 @@ message FileChunkAck {
     optional uint64 file_chunk_id = 1;
     optional uint64 file_id = 2;
     optional bool accepted = 3 [default = false];
-}
-
-message FileHeaderAck {
-    optional uint64 file_id = 1;
-    optional bool accepted = 2 [default = false];
 }
 
 message FileCancelNotification {
