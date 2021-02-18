@@ -896,9 +896,9 @@ void tego_context_send_attachment_request(
 
 typedef enum
 {
-    tego_attachment_acknowledge_accept, // proceed with a file transfer
-    tego_attachment_acknowledge_reject, // reject the file transfer
-} tego_attachment_acknowledge_t;
+    tego_attachment_response_accept, // proceed with a file transfer
+    tego_attachment_response_reject, // reject the file transfer
+} tego_attachment_response_t;
 
 /*
  * Acknowledges a request to send an attachment
@@ -911,11 +911,11 @@ typedef enum
  * @param destPathLength : length of destPath not including the null-terminator
  * @param error : filled on error
  */
-void tego_context_acknowledge_attachment_request(
+void tego_context_respond_attachment_request(
     tego_context_t* context,
     tego_user_id_t const* user,
     tego_attachment_id_t attachment,
-    tego_attachment_acknowledge_t response,
+    tego_attachment_response_t response,
     char const* destPath,
     size_t destPathLength,
     tego_error_t** error);
@@ -1156,13 +1156,13 @@ typedef void (*tego_message_received_callback_t)(
  * @param context : the current tego context
  * @param userId : the user the message was sent to
  * @param messageId : id of the message being acknowledged
- * @param messageAccepted : TEGO_TRUE if accepted, TEGO_FALSE otherwise
+ * @param messageAcked : TEGO_TRUE if acknowledged, TEGO_FALSE if error
  */
 typedef void (*tego_message_acknowledged_callback_t)(
     tego_context_t* context,
     const tego_user_id_t* userId,
     tego_message_id_t messageId,
-    tego_bool_t messageAccepted);
+    tego_bool_t messageAcked);
 
 
 /*
@@ -1186,18 +1186,35 @@ typedef void (*tego_attachment_request_received_callback_t)(
     tego_file_hash_t const* fileHash);
 
 /*
- * Callback fired when a user acknowledges our attachment request
+ * Callback fired when a transfer request message is received and
+ * acknowledged by the recipient (not whether the recipient wishes to start
+ * the attachment transfer)
  *
- * @param conext : the current tego cotext
+ * @param context : the current tego cotext
  * @param receiver : the user acknowledging our request
  * @param attachmentId : the id of the attachment that is being acknowledged
- * @param acknowledgemnt : how the recipient acknowledged our request (accept or reject)
+ * @param requestAcked : TEGO_TRUE if acknowledged, TEGO_FALSE if error
  */
 typedef void (*tego_attachment_request_acknowledged_callback_t)(
     tego_context_t* context,
     tego_user_id_t const* receiver,
     tego_attachment_id_t attachmentId,
-    tego_attachment_acknowledge_t acknowledgement);
+    tego_bool_t requestAcked);
+
+/*
+ * Callback fired when the user responds to an attachment request
+ *
+ * @param context : the current tego context
+ * @param receiver : the user accepting or rejecting our request
+ * @param attachmentId : the id of the attachment that is being accepted
+ * @param response : TEGO_TRUE if the recipients wants to recevie
+ *  our file, TEGO_FALSE otherwise
+ */
+typedef void (*tego_attachment_request_response_received_callback_t)(
+    tego_context_t* context,
+    tego_user_id_t const* receiver,
+    tego_attachment_id_t attachmentId,
+    tego_attachment_response_t response);
 
 typedef enum
 {
@@ -1347,6 +1364,11 @@ void tego_context_set_attachment_request_received_callback(
 void tego_context_set_attachment_request_acknowledged_callback(
     tego_context_t* context,
     tego_attachment_request_acknowledged_callback_t,
+    tego_error_t** error);
+
+void tego_context_set_attachment_request_response_received_callback(
+    tego_context_t* context,
+    tego_attachment_request_response_received_callback_t,
     tego_error_t** error);
 
 void tego_context_set_attachment_progress_callback(

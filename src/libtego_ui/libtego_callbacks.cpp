@@ -478,11 +478,11 @@ namespace
             logger::println("save location: {}", destination.data());
 
             // for now just accept
-            tego_context_acknowledge_attachment_request(
+            tego_context_respond_attachment_request(
                 context,
                 sender.get(),
                 attachmentId,
-                tego_attachment_acknowledge_accept,
+                tego_attachment_response_accept,
                 destination.data(),
                 destination.size(),
                 tego::throw_on_error());
@@ -493,10 +493,35 @@ namespace
         tego_context_t* context,
         tego_user_id_t const* receiver,
         tego_attachment_id_t attachmentId,
-        tego_attachment_acknowledge_t acknowledgement)
+        tego_bool_t ack)
     {
-        logger::trace();
+        // receiver
+        QString receiverId = tegoUserIdToContactId(receiver);
+
+        push_task([=]() -> void
+        {
+            // auto contactsManager = shims::UserIdentity::userIdentity->getContacts();
+            // auto contactUser = contactsManager->getShimContactByContactId(receiverId);
+            // auto conversationModel = contactUser->conversation();
+            // conversationModel->attachmentRequestAcknowledged(attachmentId, static_cast<bool>(ack));
+        });
     }
+
+    void on_attachment_request_response_received(
+        tego_context_t* context,
+        tego_user_id_t const* receiver,
+        tego_attachment_id_t attachmentId,
+        tego_attachment_response_t accepted)
+    {
+        // receiver
+        QString receiverId = tegoUserIdToContactId(receiver);
+
+        push_task([=]() -> void
+        {
+        });
+    }
+
+
 
     void on_attachment_progress(
         tego_context_t* context,
@@ -627,6 +652,11 @@ void init_libtego_callbacks(tego_context_t* context)
     tego_context_set_attachment_request_acknowledged_callback(
         context,
         &on_attachment_request_acknowledged,
+        tego::throw_on_error());
+
+    tego_context_set_attachment_request_response_received_callback(
+        context,
+        &on_attachment_request_response_received,
         tego::throw_on_error());
 
     tego_context_set_attachment_progress_callback(

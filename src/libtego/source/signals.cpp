@@ -137,7 +137,15 @@ namespace tego
     void callback_registry::cleanup_attachment_request_acknowledged_args(
         tego_user_id_t* user,
         tego_attachment_id_t,
-        tego_attachment_acknowledge_t)
+        tego_bool_t)
+    {
+        delete user;
+    }
+
+    void callback_registry::cleanup_attachment_request_response_received_args(
+        tego_user_id_t* user,
+        tego_attachment_id_t,
+        tego_attachment_response_t)
     {
         delete user;
     }
@@ -285,6 +293,7 @@ extern "C"
     TEGO_DEFINE_CALLBACK_SETTER(message_acknowledged);
     TEGO_DEFINE_CALLBACK_SETTER(attachment_request_received);
     TEGO_DEFINE_CALLBACK_SETTER(attachment_request_acknowledged);
+    TEGO_DEFINE_CALLBACK_SETTER(attachment_request_response_received);
     TEGO_DEFINE_CALLBACK_SETTER(attachment_progress);
     TEGO_DEFINE_CALLBACK_SETTER(attachment_cancelled);
     TEGO_DEFINE_CALLBACK_SETTER(attachment_complete);

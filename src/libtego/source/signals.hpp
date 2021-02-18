@@ -92,7 +92,8 @@ namespace tego
             char*, size_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(message_acknowledged, tego_user_id_t*, tego_message_id_t, tego_bool_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_request_received, tego_user_id_t*, tego_attachment_id_t, char*, size_t, uint64_t, tego_file_hash_t*);
-        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_request_acknowledged, tego_user_id_t*, tego_attachment_id_t, tego_attachment_acknowledge_t);
+        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_request_acknowledged, tego_user_id_t*, tego_attachment_id_t, tego_bool_t);
+        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_request_response_received, tego_user_id_t*, tego_attachment_id_t, tego_attachment_response_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_progress, tego_user_id_t*, tego_attachment_id_t, tego_attachment_direction_t, uint64_t, uint64_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_cancelled, tego_user_id_t*, tego_attachment_id_t, tego_attachment_direction_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_complete, tego_user_id_t*, tego_attachment_id_t, tego_attachment_direction_t);

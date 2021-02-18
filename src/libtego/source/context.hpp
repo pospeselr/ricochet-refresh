@@ -55,10 +55,10 @@ public:
     std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> send_attachment_request(
         tego_user_id_t const* user,
         std::string const& filePath);
-    void acknowledge_attachment_request(
+    void respond_attachment_request(
         tego_user_id_t const* user,
         tego_attachment_id_t attachment,
-        tego_attachment_acknowledge_t response,
+        tego_attachment_response_t response,
         std::string const& destPath);
     void cancel_attachment_transfer(
         tego_user_id_t const* user,
