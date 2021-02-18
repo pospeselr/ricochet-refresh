@@ -139,13 +139,56 @@ Column {
                 }
             }
 
+            // probably have a seperate receiving widget
             Rectangle {
                 id: transferField
                 visible: parent.childItem === this
-                width: 64
-                height: 64
+                width: 256
+                height: filename.height + progressBar.height + transferStatus.height
 
-                color: "magenta"
+                color: "transparent"
+
+                Label {
+                    id: filename
+                    x: 0
+                    y: 0
+                    width: transferField.width - transferField.height - 6
+                    height: styleHelper.pointSize * 2.5
+
+                    text: "filename.bin"
+                    font.bold: true
+                    font.pointSize: styleHelper.pointSize
+                }
+
+                ProgressBar {
+                    id: progressBar
+                    anchors.top: filename.bottom
+                    width: filename.width
+                    height: 8
+
+                    indeterminate: true
+                }
+
+                Label {
+                    id: transferStatus
+                    anchors.top: progressBar.bottom
+                    anchors.topMargin: 6
+                    width: transferField.height
+                    height: styleHelper.pointSize * 2.5
+
+                    text: "Pending"
+                    font.pointSize: filename.font.pointSize * 0.8;
+                    color: Qt.lighter(filename.color, 1.5)
+                }
+
+                Button {
+                    id: cancelButton
+                    anchors.right : transferField.right
+                    width: transferField.height
+                    height: transferField.height
+
+                    text: "✕"
+                }
             }
         }
     }
