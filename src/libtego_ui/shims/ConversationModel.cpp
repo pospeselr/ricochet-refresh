@@ -101,10 +101,22 @@ namespace shims
                 if (message.type == TransferMessage)
                 {
                     QVariantMap transfer;
-                    transfer["fileName"] = message.fileName;
-                    transfer["fileSize"] = message.fileSize;
-                    transfer["fileHash"] = message.fileHash;
-                    transfer["transferId"] = message.transferId;
+                    transfer["file_name"] = message.fileName;
+                    transfer["file_size"] = message.fileSize;
+                    transfer["file_hash"] = message.fileHash;
+                    transfer["id"] = message.identifier;
+                    transfer["status"] = [&]()
+                    {
+                        switch(message.transferStatus)
+                        {
+                            case Pending: return QStringLiteral("pending");
+                            case InProgress: return QStringLiteral("in progress");
+                            case Cancelled: return QStringLiteral("cancelled");
+                            case Finished: return QStringLiteral("finished");
+                            default: return QStringLiteral("invalid");
+                        }
+                    }();
+
                     return transfer;
                 }
             }
@@ -189,18 +201,18 @@ namespace shims
 
     void ConversationModel::sendFile()
     {
-        auto fileName =
+        auto filePath =
             QFileDialog::getOpenFileName(
                 nullptr,
                 tr("Open File"),
                 QDir::homePath(),
                 nullptr);
 
-        if (!fileName.isEmpty())
+        if (!filePath.isEmpty())
         {
             auto userIdentity = shims::UserIdentity::userIdentity;
             auto context = userIdentity->getContext();
-            const auto path = fileName.toUtf8();
+            const auto path = filePath.toUtf8();
             const auto userId = this->contactUser->toTegoUserId();
             tego_attachment_id_t attachmentId;
             std::unique_ptr<tego_file_hash_t> fileHash;
@@ -220,11 +232,14 @@ namespace shims
 
                 MessageData md;
                 md.type = TransferMessage;
-                md.fileName = fileName;
+                md.identifier = attachmentId;
+                md.time = QDateTime::currentDateTime();
+
+                md.fileName = QFileInfo(filePath).fileName();
                 // todo: maybe update API to spit out the file size?
                 md.fileSize = 0;
                 md.fileHash = QString::fromStdString(tego::to_string(fileHash.get()));
-                md.transferId = attachmentId;
+                md.transferStatus = Pending;
 
                 this->beginInsertRows(QModelIndex(), 0, 0);
                 this->messages.prepend(std::move(md));
@@ -236,6 +251,16 @@ namespace shims
                 qWarning() << err.what();
             }
         }
+    }
+
+    void ConversationModel::attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted)
+    {
+        auto row = this->indexOfIdentifier(attachmentId, true);
+        Q_ASSERT(row >= 0);
+
+        MessageData &data = messages[row];
+        data.status = accepted ? Delivered : Error;
+        emit dataChanged(index(row, 0), index(row, 0));
     }
 
     void ConversationModel::clear()

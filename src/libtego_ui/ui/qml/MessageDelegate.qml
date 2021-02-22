@@ -139,7 +139,7 @@ Column {
                 }
             }
 
-            // probably have a seperate receiving widget
+            // probably have a seperate receiving widget?
             Rectangle {
                 id: transferField
                 visible: parent.childItem === this
@@ -155,7 +155,7 @@ Column {
                     width: transferField.width - transferField.height - 6
                     height: styleHelper.pointSize * 2.5
 
-                    text: "filename.bin"
+                    text: model.transfer.file_name
                     font.bold: true
                     font.pointSize: styleHelper.pointSize
                 }
@@ -176,7 +176,7 @@ Column {
                     width: transferField.height
                     height: styleHelper.pointSize * 2.5
 
-                    text: "Pending"
+                    text: qsTr(model.transfer.status)
                     font.pointSize: filename.font.pointSize * 0.8;
                     color: Qt.lighter(filename.color, 1.5)
                 }

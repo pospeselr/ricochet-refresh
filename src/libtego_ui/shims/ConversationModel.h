@@ -43,9 +43,11 @@ namespace shims
         Q_INVOKABLE void resetUnreadCount();
 
         void sendFile();
+        void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
 
         void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
         void messageAcknowledged(tego_message_id_t messageId, bool accepted);
+
     public slots:
         void sendMessage(const QString &text);
         void clear();
@@ -65,6 +67,15 @@ namespace shims
             TransferMessage,
         };
 
+        enum TransferStatus
+        {
+            InvalidTransfer,
+            Pending,
+            InProgress,
+            Cancelled,
+            Finished,
+        };
+
         struct MessageData
         {
             MessageDataType type = InvalidMessage;
@@ -77,7 +88,7 @@ namespace shims
             QString fileName = {};
             qint64 fileSize = 0;
             QString fileHash = {};
-            tego_attachment_id_t transferId = 0;
+            TransferStatus transferStatus = InvalidTransfer;
         };
 
         QList<MessageData> messages;
