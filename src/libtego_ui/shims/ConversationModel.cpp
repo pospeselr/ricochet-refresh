@@ -116,6 +116,10 @@ namespace shims
                             default: return QStringLiteral("invalid");
                         }
                     }();
+                    const auto locale = QLocale::system();
+                    transfer["progressString"] = QString("%1 / %2").arg(locale.formattedDataSize(message.bytesTransferred)).arg(locale.formattedDataSize(message.fileSize));
+                    transfer["progressPercent"] = double(message.bytesTransferred) / double(message.fileSize);
+                    transfer["direction"] = message.transferDirection == tego_attachment_direction_sending ? QStringLiteral("sending") : QStringLiteral("receiving");
 
                     return transfer;
                 }
@@ -216,9 +220,11 @@ namespace shims
             const auto userId = this->contactUser->toTegoUserId();
             tego_attachment_id_t attachmentId;
             std::unique_ptr<tego_file_hash_t> fileHash;
+            tego_file_size_t fileSize = 0;
 
             try
             {
+
                 tego_context_send_attachment_request(
                     context,
                     userId.get(),
@@ -226,6 +232,7 @@ namespace shims
                     path.size(),
                     &attachmentId,
                     tego::out(fileHash),
+                    &fileSize,
                     tego::throw_on_error());
 
                 logger::println("send file request id : {}, hash : {}", attachmentId, tego::to_string(fileHash.get()));
@@ -236,8 +243,7 @@ namespace shims
                 md.time = QDateTime::currentDateTime();
 
                 md.fileName = QFileInfo(filePath).fileName();
-                // todo: maybe update API to spit out the file size?
-                md.fileSize = 0;
+                md.fileSize = fileSize;
                 md.fileHash = QString::fromStdString(tego::to_string(fileHash.get()));
                 md.transferStatus = Pending;
 
@@ -247,7 +253,6 @@ namespace shims
             }
             catch(const std::runtime_error& err)
             {
-                logger::println("error sending file request: {}", err.what());
                 qWarning() << err.what();
             }
         }
@@ -261,6 +266,58 @@ namespace shims
         MessageData &data = messages[row];
         data.status = accepted ? Delivered : Error;
         emit dataChanged(index(row, 0), index(row, 0));
+    }
+
+    void ConversationModel::cancelAttachmentTransfer(tego_attachment_id_t attachmentId)
+    {
+        logger::println("request to cancel attachment transfer: {}", attachmentId);
+
+        auto userIdentity = shims::UserIdentity::userIdentity;
+        auto context = userIdentity->getContext();
+        const auto userId = this->contactUser->toTegoUserId();
+
+        try
+        {
+            tego_context_cancel_attachment_transfer(
+                context,
+                userId.get(),
+                attachmentId,
+                tego::throw_on_error());
+        }
+        catch(const std::runtime_error& err)
+        {
+            qWarning() << err.what();
+        }
+
+        auto row = this->indexOfIdentifier(attachmentId, true);
+        Q_ASSERT(row >= 0);
+
+        MessageData &data = messages[row];
+        data.transferStatus = Cancelled;
+        emit dataChanged(index(row, 0), index(row, 0));
+    }
+
+    void ConversationModel::updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, qint64 bytesTransferred)
+    {
+        auto row = this->indexOfIdentifier(attachmentId, true);
+        if (row >= 0)
+        {
+            MessageData &data = messages[row];
+            data.bytesTransferred = bytesTransferred;
+            if (data.fileSize == data.bytesTransferred)
+            {
+                data.transferStatus = Finished;
+            }
+            else
+            {
+                data.transferStatus = InProgress;
+            }
+
+            emit dataChanged(index(row, 0), index(row, 0));
+        }
+
+
+
     }
 
     void ConversationModel::clear()

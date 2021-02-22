@@ -536,6 +536,19 @@ namespace
         uint64_t bytesComplete,
         uint64_t bytesTotal)
     {
+        auto contactId = tegoUserIdToContactId(userId);
+
+        push_task([=]() -> void
+        {
+            auto contactUser = contactUserFromContactId(contactId);
+            Q_ASSERT(contactUser != nullptr);
+            auto conversationModel = contactUser->conversation();
+            Q_ASSERT(conversationModel != nullptr);
+
+            conversationModel->updateAttachmentTransferProgress(attachmentId, bytesComplete);
+        });
+
+
         logger::println(
             "File Progress id : {}, direction : {}, transferred : {} bytes, total : {} bytes",
             attachmentId,

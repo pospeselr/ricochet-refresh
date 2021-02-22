@@ -52,7 +52,7 @@ public:
     size_t get_user_count() const;
     std::vector<tego_user_id_t*> get_users() const;
     void forget_user(const tego_user_id_t* user);
-    std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> send_attachment_request(
+    std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_size_t> send_attachment_request(
         tego_user_id_t const* user,
         std::string const& filePath);
     void respond_attachment_request(

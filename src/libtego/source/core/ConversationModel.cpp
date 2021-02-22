@@ -207,18 +207,18 @@ template<typename T> T *findOrCreateChannelForContact(ContactUser *contact, Prot
 }
 
 
-std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> ConversationModel::sendFile(const QString &file_url)
+std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_size_t> ConversationModel::sendFile(const QString &file_uri)
 {
-    logger::println("Sending file: {}", file_url);
+    logger::println("Sending file: {}", file_uri);
 
-    MessageData message(file_url, QDateTime::currentDateTime(), lastMessageId++, Queued);
+    MessageData message(file_uri, QDateTime::currentDateTime(), lastMessageId++, Queued);
     message.type = ConversationModel::MessageData::Type::File;
 
     std::unique_ptr<tego_file_hash_t> fileHash;
 
     // calculate our file hash
     // todo, move this calculation down into channel
-    if(std::ifstream file(file_url.toStdString(), std::ios::in | std::ios::binary); file.is_open())
+    if(std::ifstream file(file_uri.toStdString(), std::ios::in | std::ios::binary); file.is_open())
     {
         fileHash = std::make_unique<tego_file_hash_t>(file);
 
@@ -226,8 +226,11 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> Conversation
     }
     else
     {
-        TEGO_THROW_MSG("Could not open file {}", file_url);
+        TEGO_THROW_MSG("Could not open file {}", file_uri);
     }
+
+	// calculate file size
+    const uint64_t fileSize = QFileInfo(file_uri).size();
 
     if (m_contact->connection())
     {
@@ -259,7 +262,7 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> Conversation
     endInsertRows();
     prune();
 
-    return {message.identifier, std::move(fileHash)};
+    return {message.identifier, std::move(fileHash), fileSize};
 }
 
 tego_message_id_t ConversationModel::sendMessage(const QString &text)

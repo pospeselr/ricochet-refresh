@@ -103,6 +103,7 @@ Column {
 
             color: "transparent"
 
+            // text message
             TextEdit {
                 id: textField
                 visible: parent.childItem === this
@@ -139,7 +140,7 @@ Column {
                 }
             }
 
-            // probably have a seperate receiving widget?
+            // sending file transfer
             Rectangle {
                 id: transferField
                 visible: parent.childItem === this
@@ -166,7 +167,8 @@ Column {
                     width: filename.width
                     height: 8
 
-                    indeterminate: true
+                    indeterminate: model.transfer.status === "pending"
+                    value: model.transfer.progressPercent;
                 }
 
                 Label {
@@ -176,18 +178,23 @@ Column {
                     width: transferField.height
                     height: styleHelper.pointSize * 2.5
 
-                    text: qsTr(model.transfer.status)
+                    text: model.transfer.status === "in progress" ? model.transfer.progressString : qsTr(model.transfer.status)
                     font.pointSize: filename.font.pointSize * 0.8;
                     color: Qt.lighter(filename.color, 1.5)
                 }
 
                 Button {
                     id: cancelButton
+                    visible: (model.transfer.status === "pending" || model.transfer.status === "in progress")
                     anchors.right : transferField.right
-                    width: transferField.height
-                    height: transferField.height
+                    width: visible ? transferField.height : 0
+                    height: visible ? transferField.height : 0
 
                     text: "✕"
+
+                    onClicked: {
+                        contact.conversation.cancelAttachmentTransfer(model.transfer.id);
+                    }
                 }
             }
         }

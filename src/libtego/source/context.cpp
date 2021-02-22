@@ -590,7 +590,7 @@ void tego_context::forget_user(const tego_user_id_t* user)
     contactUser->deleteContact();
 }
 
-std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>> tego_context::send_attachment_request(
+std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_size_t> tego_context::send_attachment_request(
     tego_user_id_t const* user,
     std::string const& filePath)
 {
@@ -1090,6 +1090,7 @@ extern "C"
         size_t filePathLength,
         tego_attachment_id_t* out_id,
         tego_file_hash_t** out_fileHash,
+        tego_file_size_t* out_fileSize,
         tego_error_t** error)
     {
         return tego::translateExceptions([=]() -> void
@@ -1100,7 +1101,7 @@ extern "C"
             TEGO_THROW_IF_NULL(filePath);
             TEGO_THROW_IF_FALSE(filePathLength > 0);
 
-            auto [id, fileHash] =
+            auto [id, fileHash, fileSize] =
                 context->send_attachment_request(
                     user,
                     std::string(filePath, filePathLength));
@@ -1113,6 +1114,11 @@ extern "C"
             {
                 *out_fileHash = fileHash.release();
             }
+            if (out_fileSize != nullptr)
+            {
+                *out_fileSize = fileSize;
+            }
+
         }, error);
     }
 

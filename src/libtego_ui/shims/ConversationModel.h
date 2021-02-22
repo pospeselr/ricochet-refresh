@@ -44,6 +44,8 @@ namespace shims
 
         void sendFile();
         void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
+        Q_INVOKABLE void cancelAttachmentTransfer(quint32 attachmentId);
+        void updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, qint64 bytesTransferred);
 
         void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
         void messageAcknowledged(tego_message_id_t messageId, bool accepted);
@@ -88,6 +90,8 @@ namespace shims
             QString fileName = {};
             qint64 fileSize = 0;
             QString fileHash = {};
+            qint64 bytesTransferred = 0;
+            tego_attachment_direction_t transferDirection = tego_attachment_direction_sending;
             TransferStatus transferStatus = InvalidTransfer;
         };
 

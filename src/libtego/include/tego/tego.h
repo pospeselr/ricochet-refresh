@@ -825,6 +825,8 @@ typedef uint32_t tego_message_id_t;
 typedef uint32_t tego_attachment_id_t;
 // struct for file hash
 typedef struct tego_file_hash tego_file_hash_t;
+// intger type for file size
+typedef uint64_t tego_file_size_t;
 
 /*
  * Calculates the number of bytes needed to serialize a file hash to
@@ -883,6 +885,7 @@ void tego_context_send_message(
  * @param filePathLength : length of filePath not including null-terminator
  * @param out_id : optional, filled with assigned attachment id for callbacks
  * @param out_fileHash : optional, filled with hash of the file to send
+ * @param out_fileSize : optional, filled with the size of the file in bytes
  * @param error : filled on error
  */
 void tego_context_send_attachment_request(
@@ -892,6 +895,7 @@ void tego_context_send_attachment_request(
     size_t filePathLength,
     tego_attachment_id_t* out_id,
     tego_file_hash_t** out_fileHash,
+    tego_file_size_t* out_fileSize,
     tego_error_t** error);
 
 typedef enum
@@ -1182,7 +1186,7 @@ typedef void (*tego_attachment_request_received_callback_t)(
     tego_attachment_id_t attachmentId,
     char const* attachmentName,
     size_t attachmentNameLength,
-    uint64_t attachmentSize,
+    tego_file_size_t attachmentSize,
     tego_file_hash_t const* fileHash);
 
 /*
@@ -1238,8 +1242,8 @@ typedef void (*tego_attachment_progress_callback_t)(
     const tego_user_id_t* userId,
     tego_attachment_id_t attachmentId,
     tego_attachment_direction_t attachmentDirection,
-    uint64_t bytesComplete,
-    uint64_t bytesTotal);
+    tego_file_size_t bytesComplete,
+    tego_file_size_t bytesTotal);
 
 /*
  * Callback fired when an attachment transfer has been cancelled
