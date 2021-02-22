@@ -317,29 +317,37 @@ void ConversationModel::rejectFile(tego_attachment_id_t fileId)
 
 void ConversationModel::cancelTransfer(tego_attachment_id_t fileId)
 {
-    TEGO_THROW_IF_FALSE(m_contact->connection());
-
-    // first try cancelling an inbound transfer
-    if (auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Inbound);
-        channel != nullptr)
+    if(m_contact->connection())
     {
-        if (channel->isOpened() && channel->cancelTransfer(fileId))
+        // first try cancelling an inbound transfer
+        if (auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Inbound);
+            channel != nullptr)
         {
-            return;
+            if (channel->isOpened() && channel->cancelTransfer(fileId))
+            {
+                return;
+            }
+        }
+
+        // next try cancelling an outbound transfer
+        if (auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Outbound);
+            channel != nullptr)
+        {
+            if (channel->isOpened() && channel->cancelTransfer(fileId))
+            {
+                return;
+            }
         }
     }
-
-    // next try cancelling an outbound transfer
-    if (auto channel = findOrCreateChannelForContact<Protocol::FileChannel>(m_contact, Protocol::Channel::Outbound);
-        channel != nullptr)
+    else if(auto it = std::find_if(messages.begin(), messages.end(), [=](auto& msg) {return msg.identifier == fileId;});
+            it != messages.end())
     {
-        if (channel->isOpened() && channel->cancelTransfer(fileId))
-        {
-            return;
-        }
+        messages.erase(it);
     }
-
-    TEGO_THROW_MSG("Tego transfer {} does not exist", fileId);
+    else
+    {
+        TEGO_THROW_MSG("Tego transfer {} does not exist", fileId);
+    }
 }
 
 
