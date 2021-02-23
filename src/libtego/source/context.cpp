@@ -1136,14 +1136,18 @@ extern "C"
             TEGO_THROW_IF_NULL(context);
             TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(user);
-            TEGO_THROW_IF_NULL(destPath);
-            TEGO_THROW_IF_FALSE(destPathLength > 0);
+            // dest string must be valid is accept
+            TEGO_THROW_IF_TRUE(response == tego_attachment_response_accept &&
+                (destPath == nullptr || destPathLength == 0))
+            // dest string must be null and empty if reject
+            TEGO_THROW_IF_TRUE(response == tego_attachment_response_reject &&
+                (destPath != nullptr || destPathLength > 0))
 
             context->respond_attachment_request(
                 user,
                 attachment,
                 response,
-                std::string(destPath, destPathLength));
+                destPath ? std::string(destPath, destPathLength) : std::string());
         }, error);
     }
 
