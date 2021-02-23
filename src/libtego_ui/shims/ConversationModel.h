@@ -61,12 +61,14 @@ namespace shims
         Q_INVOKABLE void resetUnreadCount();
 
         void sendFile();
+        void attachmentRequestReceived(tego_attachment_id_t attachmentId, QString fileName, QString fileHash, quint64 fileSize);
         void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
         void attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response);
         // cancelAttachmentTransfer neeeds to use a Qt type since it is invokable from QML
         static_assert(std::is_same_v<quint32, tego_attachment_id_t>);
         Q_INVOKABLE void cancelAttachmentTransfer(quint32 attachmentId);
-        void updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, qint64 bytesTransferred);
+        // todo: these should have form as above, attachmentRequestBLAH rather than acitive doBLAH
+        void updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, quint64 bytesTransferred);
         void finishAttachmentTransfer(tego_attachment_id_t attachmentId);
 
         void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
@@ -89,14 +91,16 @@ namespace shims
             MessageDataType type = InvalidMessage;
             QString text = {};
             QDateTime time = {};
-            tego_message_id_t identifier = 0;
+            static_assert(std::is_same_v<quint32, tego_attachment_id_t>);
+            static_assert(std::is_same_v<quint32, tego_message_id_t>);
+            quint32 identifier = 0;
             MessageStatus status = None;
             quint8 attemptCount = 0;
             // file transfer data
             QString fileName = {};
             qint64 fileSize = 0;
             QString fileHash = {};
-            qint64 bytesTransferred = 0;
+            quint64 bytesTransferred = 0;
             tego_attachment_direction_t transferDirection = tego_attachment_direction_sending;
             TransferStatus transferStatus = InvalidTransfer;
         };
@@ -105,6 +109,8 @@ namespace shims
         int unreadCount = 0;
 
         void emitDataChanged(int row);
-        int indexOfIdentifier(tego_message_id_t messageId, bool isOutgoing) const;
+        int indexOfMessage(quint32 identifier) const;
+        int indexOfOutgoingMessage(quint32 identifier) const;
+        int indexOfIncomingMessage(quint32 identifier) const;
     };
 }

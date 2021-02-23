@@ -463,29 +463,19 @@ namespace
         // we have to call acknowledge on the UI thread, and so we have to marshall over some stuffs >:[
 
         // sender
-        std::unique_ptr<tego_user_id_t> senderCopy;
-        tego_user_id_copy(sender, tego::out(senderCopy), tego::throw_on_error());
+        auto contactId = tegoUserIdToContactId(sender);
 
         // attachment name
         QString attachmentNameCopy = QString::fromUtf8(attachmentName, attachmentNameLength);
 
-        push_task([=,attachmentName=std::move(attachmentNameCopy),sender=std::move(senderCopy)]() -> void
+        push_task([=,attachmentName=std::move(attachmentNameCopy)]() -> void
         {
-            QFileInfo fi(attachmentName);
+            auto contactUser = contactUserFromContactId(contactId);
+            Q_ASSERT(contactUser != nullptr);
+            auto conversationModel = contactUser->conversation();
+            Q_ASSERT(conversationModel != nullptr);
 
-            const auto destination = QString("%1/%2").arg(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)).arg(fi.fileName()).toUtf8();
-
-            logger::println("save location: {}", destination.data());
-
-            // for now just accept
-            tego_context_respond_attachment_request(
-                context,
-                sender.get(),
-                attachmentId,
-                tego_attachment_response_accept,
-                destination.data(),
-                destination.size(),
-                tego::throw_on_error());
+            conversationModel->attachmentRequestReceived(attachmentId, attachmentName, QString::fromStdString(hashStr), attachmentSize);
         });
     }
 

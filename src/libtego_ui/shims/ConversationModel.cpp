@@ -263,9 +263,31 @@ namespace shims
         }
     }
 
+    void ConversationModel::attachmentRequestReceived(tego_attachment_id_t attachmentId, QString fileName, QString fileHash, quint64 fileSize)
+    {
+        logger::println("attachmentRequestReceived: {}, {}, {}, {}", attachmentId, fileName, fileHash, fileSize);
+
+        MessageData md;
+        md.type = TransferMessage;
+        md.identifier = attachmentId;
+        md.time = QDateTime::currentDateTime();
+        md.status = Received;
+
+        md.fileName = std::move(fileName);
+        md.fileHash = std::move(fileHash);
+        md.fileSize = fileSize;
+        md.transferStatus = Pending;
+
+        this->beginInsertRows(QModelIndex(), 0, 0);
+        this->messages.prepend(std::move(md));
+        this->endInsertRows();
+
+        this->setUnreadCount(this->unreadCount + 1);
+    }
+
     void ConversationModel::attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted)
     {
-        auto row = this->indexOfIdentifier(attachmentId, true);
+        auto row = this->indexOfOutgoingMessage(attachmentId);
         Q_ASSERT(row >= 0);
 
         MessageData &data = messages[row];
@@ -275,7 +297,7 @@ namespace shims
 
     void ConversationModel::attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response)
     {
-        auto row = this->indexOfIdentifier(attachmentId, true);
+        auto row = this->indexOfOutgoingMessage(attachmentId);
         Q_ASSERT(row >= 0);
 
         MessageData &data = messages[row];
@@ -298,7 +320,7 @@ namespace shims
     {
         // we get the cancelled callback if we cancel or if the other user cancelled,
         // so ensure we only do work if it was the other preson cancelling
-        auto row = this->indexOfIdentifier(attachmentId, true);
+        auto row = this->indexOfMessage(attachmentId);
         if (row < 0)
         {
             return;
@@ -309,7 +331,6 @@ namespace shims
         {
             data.transferStatus = Cancelled;
             emitDataChanged(row);
-
 
             logger::println("request to cancel attachment transfer: {}", attachmentId);
 
@@ -332,9 +353,9 @@ namespace shims
         }
     }
 
-    void ConversationModel::updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, qint64 bytesTransferred)
+    void ConversationModel::updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, quint64 bytesTransferred)
     {
-        auto row = this->indexOfIdentifier(attachmentId, true);
+        auto row = this->indexOfMessage(attachmentId);
         if (row >= 0)
         {
             MessageData &data = messages[row];
@@ -347,7 +368,7 @@ namespace shims
 
     void ConversationModel::finishAttachmentTransfer(tego_attachment_id_t attachmentId)
     {
-        auto row = this->indexOfIdentifier(attachmentId, true);
+        auto row = this->indexOfMessage(attachmentId);
         if (row >= 0)
         {
             MessageData &data = messages[row];
@@ -394,7 +415,7 @@ namespace shims
 
     void ConversationModel::messageAcknowledged(tego_message_id_t messageId, bool accepted)
     {
-        auto row = this->indexOfIdentifier(messageId, true);
+        auto row = this->indexOfOutgoingMessage(messageId);
         Q_ASSERT(row >= 0);
 
         MessageData &data = messages[row];
@@ -408,12 +429,34 @@ namespace shims
         emit dataChanged(index(row, 0), index(row, 0));
     }
 
-    int ConversationModel::indexOfIdentifier(tego_message_id_t messageId, bool isOutgoing) const
+    int ConversationModel::indexOfMessage(quint32 identifier) const
     {
         for (int i = 0; i < messages.size(); i++) {
             const auto& currentMessage = messages[i];
 
-            if (currentMessage.identifier == messageId && (currentMessage.status != Received) == isOutgoing)
+            if (currentMessage.identifier == identifier)
+                return i;
+        }
+        return -1;
+    }
+
+    int ConversationModel::indexOfOutgoingMessage(quint32 identifier) const
+    {
+        for (int i = 0; i < messages.size(); i++) {
+            const auto& currentMessage = messages[i];
+
+            if (currentMessage.identifier == identifier && (currentMessage.status != Received))
+                return i;
+        }
+        return -1;
+    }
+
+    int ConversationModel::indexOfIncomingMessage(quint32 identifier) const
+    {
+        for (int i = 0; i < messages.size(); i++) {
+            const auto& currentMessage = messages[i];
+
+            if (currentMessage.identifier == identifier && (currentMessage.status == Received))
                 return i;
         }
         return -1;
