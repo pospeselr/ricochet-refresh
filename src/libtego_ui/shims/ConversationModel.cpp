@@ -353,7 +353,7 @@ namespace shims
         }
     }
 
-    void ConversationModel::updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, quint64 bytesTransferred)
+    void ConversationModel::attachmentRequestProgressUpdated(tego_attachment_id_t attachmentId, quint64 bytesTransferred)
     {
         auto row = this->indexOfMessage(attachmentId);
         if (row >= 0)
@@ -366,7 +366,7 @@ namespace shims
         }
     }
 
-    void ConversationModel::finishAttachmentTransfer(tego_attachment_id_t attachmentId)
+    void ConversationModel::attachmentRequestTransferCompleted(tego_attachment_id_t attachmentId)
     {
         auto row = this->indexOfMessage(attachmentId);
         if (row >= 0)

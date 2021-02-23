@@ -61,15 +61,15 @@ namespace shims
         Q_INVOKABLE void resetUnreadCount();
 
         void sendFile();
-        void attachmentRequestReceived(tego_attachment_id_t attachmentId, QString fileName, QString fileHash, quint64 fileSize);
-        void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
-        void attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response);
         // cancelAttachmentTransfer neeeds to use a Qt type since it is invokable from QML
         static_assert(std::is_same_v<quint32, tego_attachment_id_t>);
         Q_INVOKABLE void cancelAttachmentTransfer(quint32 attachmentId);
-        // todo: these should have form as above, attachmentRequestBLAH rather than acitive doBLAH
-        void updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, quint64 bytesTransferred);
-        void finishAttachmentTransfer(tego_attachment_id_t attachmentId);
+
+        void attachmentRequestReceived(tego_attachment_id_t attachmentId, QString fileName, QString fileHash, quint64 fileSize);
+        void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
+        void attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response);
+        void attachmentRequestProgressUpdated(tego_attachment_id_t attachmentId, quint64 bytesTransferred);
+        void attachmentRequestTransferCompleted(tego_attachment_id_t attachmentId);
 
         void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
         void messageAcknowledged(tego_message_id_t messageId, bool accepted);
