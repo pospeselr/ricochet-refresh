@@ -32,36 +32,6 @@ namespace shims
             Error
         };
 
-        // impl QAbstractListModel
-        virtual QHash<int,QByteArray> roleNames() const;
-        virtual int rowCount(const QModelIndex &parent = QModelIndex()) const;
-        virtual QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
-
-        shims::ContactUser *contact() const;
-        void setContact(shims::ContactUser *contact);
-        int getUnreadCount() const;
-        Q_INVOKABLE void resetUnreadCount();
-
-        void sendFile();
-        void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
-        Q_INVOKABLE void cancelAttachmentTransfer(quint32 attachmentId);
-        void updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, qint64 bytesTransferred);
-
-        void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
-        void messageAcknowledged(tego_message_id_t messageId, bool accepted);
-
-    public slots:
-        void sendMessage(const QString &text);
-        void clear();
-
-    signals:
-        void contactChanged();
-        void unreadCountChanged(int prevCount, int currentCount);
-    private:
-        void setUnreadCount(int count);
-
-        shims::ContactUser* contactUser = nullptr;
-
         enum MessageDataType
         {
             InvalidMessage = -1,
@@ -77,6 +47,40 @@ namespace shims
             Cancelled,
             Finished,
         };
+        Q_ENUM(TransferStatus);
+
+        // impl QAbstractListModel
+        virtual QHash<int,QByteArray> roleNames() const;
+        virtual int rowCount(const QModelIndex &parent = QModelIndex()) const;
+        virtual QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
+
+        shims::ContactUser *contact() const;
+        void setContact(shims::ContactUser *contact);
+        int getUnreadCount() const;
+        Q_INVOKABLE void resetUnreadCount();
+
+        void sendFile();
+        void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
+        // cancelAttachmentTransfer neeeds to use a Qt type since it is invokable from QML
+        static_assert(std::is_same_v<quint32, tego_attachment_id_t>);
+        Q_INVOKABLE void cancelAttachmentTransfer(quint32 attachmentId);
+        void updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, qint64 bytesTransferred);
+        void finishAttachmentTransfer(tego_attachment_id_t attachmentId);
+
+        void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
+        void messageAcknowledged(tego_message_id_t messageId, bool accepted);
+
+    public slots:
+        void sendMessage(const QString &text);
+        void clear();
+
+    signals:
+        void contactChanged();
+        void unreadCountChanged(int prevCount, int currentCount);
+    private:
+        void setUnreadCount(int count);
+
+        shims::ContactUser* contactUser = nullptr;
 
         struct MessageData
         {

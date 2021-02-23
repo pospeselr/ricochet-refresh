@@ -164,28 +164,31 @@ Column {
                 ProgressBar {
                     id: progressBar
                     anchors.top: filename.bottom
+                    anchors.topMargin: 6
+                    anchors.bottomMargin: 6
                     width: filename.width
-                    height: 8
+                    height: visible ? 8 : 0
 
-                    indeterminate: model.transfer.status === "pending"
+                    visible: model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress
+
+                    indeterminate: model.transfer.status === ConversationModel.Pending
                     value: model.transfer.progressPercent;
                 }
 
                 Label {
                     id: transferStatus
                     anchors.top: progressBar.bottom
-                    anchors.topMargin: 6
                     width: transferField.height
                     height: styleHelper.pointSize * 2.5
 
-                    text: model.transfer.status === "in progress" ? model.transfer.progressString : qsTr(model.transfer.status)
+                    text: model.transfer.statusString
                     font.pointSize: filename.font.pointSize * 0.8;
                     color: Qt.lighter(filename.color, 1.5)
                 }
 
                 Button {
                     id: cancelButton
-                    visible: (model.transfer.status === "pending" || model.transfer.status === "in progress")
+                    visible: (model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress)
                     anchors.right : transferField.right
                     width: visible ? transferField.height : 0
                     height: visible ? transferField.height : 0

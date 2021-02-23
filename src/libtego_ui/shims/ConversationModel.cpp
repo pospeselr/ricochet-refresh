@@ -105,19 +105,22 @@ namespace shims
                     transfer["file_size"] = message.fileSize;
                     transfer["file_hash"] = message.fileHash;
                     transfer["id"] = message.identifier;
-                    transfer["status"] = [&]()
+                    transfer["status"] = message.transferStatus;
+                    transfer["statusString"] = [=]()
                     {
                         switch(message.transferStatus)
                         {
-                            case Pending: return QStringLiteral("pending");
-                            case InProgress: return QStringLiteral("in progress");
-                            case Cancelled: return QStringLiteral("cancelled");
-                            case Finished: return QStringLiteral("finished");
-                            default: return QStringLiteral("invalid");
+                            case Pending: return tr("Pending");
+                            case InProgress:
+                            {
+                                const auto locale = QLocale::system();
+                                return QString("%1 / %2").arg(locale.formattedDataSize(message.bytesTransferred)).arg(locale.formattedDataSize(message.fileSize));
+                            }
+                            case Cancelled: return tr("Cancelled");
+                            case Finished: return tr("Complete");
+                            default: return tr("Invalid");
                         }
                     }();
-                    const auto locale = QLocale::system();
-                    transfer["progressString"] = QString("%1 / %2").arg(locale.formattedDataSize(message.bytesTransferred)).arg(locale.formattedDataSize(message.fileSize));
                     transfer["progressPercent"] = double(message.bytesTransferred) / double(message.fileSize);
                     transfer["direction"] = message.transferDirection == tego_attachment_direction_sending ? QStringLiteral("sending") : QStringLiteral("receiving");
 
@@ -315,9 +318,19 @@ namespace shims
 
             emit dataChanged(index(row, 0), index(row, 0));
         }
+    }
+
+    void ConversationModel::finishAttachmentTransfer(tego_attachment_id_t attachmentId)
+    {
+        auto row = this->indexOfIdentifier(attachmentId, true);
+        if (row >= 0)
+        {
+            MessageData &data = messages[row];
+            data.transferStatus = Finished;
 
 
-
+            emit dataChanged(index(row, 0), index(row, 0));
+        }
     }
 
     void ConversationModel::clear()
