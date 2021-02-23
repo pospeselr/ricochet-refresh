@@ -118,6 +118,7 @@ namespace shims
                             }
                             case Cancelled: return tr("Cancelled");
                             case Finished: return tr("Complete");
+                            case Rejected: return tr("Rejected");
                             default: return tr("Invalid");
                         }
                     }();
@@ -244,6 +245,7 @@ namespace shims
                 md.type = TransferMessage;
                 md.identifier = attachmentId;
                 md.time = QDateTime::currentDateTime();
+                md.status = Queued;
 
                 md.fileName = QFileInfo(filePath).fileName();
                 md.fileSize = fileSize;
@@ -268,36 +270,66 @@ namespace shims
 
         MessageData &data = messages[row];
         data.status = accepted ? Delivered : Error;
-        emit dataChanged(index(row, 0), index(row, 0));
+        emitDataChanged(row);
     }
 
-    void ConversationModel::cancelAttachmentTransfer(tego_attachment_id_t attachmentId)
+    void ConversationModel::attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response)
     {
-        logger::println("request to cancel attachment transfer: {}", attachmentId);
-
-        auto userIdentity = shims::UserIdentity::userIdentity;
-        auto context = userIdentity->getContext();
-        const auto userId = this->contactUser->toTegoUserId();
-
-        try
-        {
-            tego_context_cancel_attachment_transfer(
-                context,
-                userId.get(),
-                attachmentId,
-                tego::throw_on_error());
-        }
-        catch(const std::runtime_error& err)
-        {
-            qWarning() << err.what();
-        }
-
         auto row = this->indexOfIdentifier(attachmentId, true);
         Q_ASSERT(row >= 0);
 
         MessageData &data = messages[row];
-        data.transferStatus = Cancelled;
-        emit dataChanged(index(row, 0), index(row, 0));
+        switch(response)
+        {
+            case tego_attachment_response_accept:
+                data.transferStatus = Pending;
+                break;
+            case tego_attachment_response_reject:
+                data.transferStatus = Rejected;
+                break;
+            default:
+                return;
+        }
+
+        emitDataChanged(row);
+    }
+
+    void ConversationModel::cancelAttachmentTransfer(tego_attachment_id_t attachmentId)
+    {
+        // we get the cancelled callback if we cancel or if the other user cancelled,
+        // so ensure we only do work if it was the other preson cancelling
+        auto row = this->indexOfIdentifier(attachmentId, true);
+        if (row < 0)
+        {
+            return;
+        }
+
+        MessageData &data = messages[row];
+        if (data.transferStatus != Cancelled)
+        {
+            data.transferStatus = Cancelled;
+            emitDataChanged(row);
+
+
+            logger::println("request to cancel attachment transfer: {}", attachmentId);
+
+            auto userIdentity = shims::UserIdentity::userIdentity;
+            auto context = userIdentity->getContext();
+            const auto userId = this->contactUser->toTegoUserId();
+
+            try
+            {
+                tego_context_cancel_attachment_transfer(
+                    context,
+                    userId.get(),
+                    attachmentId,
+                    tego::throw_on_error());
+            }
+            catch(const std::runtime_error& err)
+            {
+                qWarning() << err.what();
+            }
+        }
     }
 
     void ConversationModel::updateAttachmentTransferProgress(tego_attachment_id_t attachmentId, qint64 bytesTransferred)
@@ -307,16 +339,9 @@ namespace shims
         {
             MessageData &data = messages[row];
             data.bytesTransferred = bytesTransferred;
-            if (data.fileSize == data.bytesTransferred)
-            {
-                data.transferStatus = Finished;
-            }
-            else
-            {
-                data.transferStatus = InProgress;
-            }
+            data.transferStatus = InProgress;
 
-            emit dataChanged(index(row, 0), index(row, 0));
+            emitDataChanged(row);
         }
     }
 
@@ -328,8 +353,7 @@ namespace shims
             MessageData &data = messages[row];
             data.transferStatus = Finished;
 
-
-            emit dataChanged(index(row, 0), index(row, 0));
+            emitDataChanged(row);
         }
     }
 
@@ -375,6 +399,12 @@ namespace shims
 
         MessageData &data = messages[row];
         data.status = accepted ? Delivered : Error;
+        emitDataChanged(row);
+    }
+
+    void ConversationModel::emitDataChanged(int row)
+    {
+        Q_ASSERT(row >= 0);
         emit dataChanged(index(row, 0), index(row, 0));
     }
 

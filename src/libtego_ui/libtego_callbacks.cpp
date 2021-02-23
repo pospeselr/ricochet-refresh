@@ -495,17 +495,16 @@ namespace
         tego_attachment_id_t attachmentId,
         tego_bool_t ack)
     {
-        logger::println("attachmetn request ack'd id : {} ack : {}", attachmentId, ack);
-
-        // receiver
-        QString receiverId = tegoUserIdToContactId(receiver);
+        auto contactId = tegoUserIdToContactId(receiver);
 
         push_task([=]() -> void
         {
-            // auto contactsManager = shims::UserIdentity::userIdentity->getContacts();
-            // auto contactUser = contactsManager->getShimContactByContactId(receiverId);
-            // auto conversationModel = contactUser->conversation();
-            // conversationModel->attachmentRequestAcknowledged(attachmentId, static_cast<bool>(ack));
+            auto contactUser = contactUserFromContactId(contactId);
+            Q_ASSERT(contactUser != nullptr);
+            auto conversationModel = contactUser->conversation();
+            Q_ASSERT(conversationModel != nullptr);
+
+            conversationModel->attachmentRequestAcknowledged(attachmentId, ack);
         });
     }
 
@@ -515,18 +514,18 @@ namespace
         tego_attachment_id_t attachmentId,
         tego_attachment_response_t response)
     {
-        logger::println("attachment response: {}", response == tego_attachment_response_accept ? "accept" : "reject");
-
-        // receiver
-        QString receiverId = tegoUserIdToContactId(receiver);
+        auto contactId = tegoUserIdToContactId(receiver);
 
         push_task([=]() -> void
         {
+            auto contactUser = contactUserFromContactId(contactId);
+            Q_ASSERT(contactUser != nullptr);
+            auto conversationModel = contactUser->conversation();
+            Q_ASSERT(conversationModel != nullptr);
 
+            conversationModel->attachmentRequestResponded(attachmentId, response);
         });
     }
-
-
 
     void on_attachment_progress(
         tego_context_t* context,
@@ -563,10 +562,17 @@ namespace
         tego_attachment_id_t attachmentId,
         tego_attachment_direction_t direction)
     {
-        logger::println(
-            "File Transfer Cancelled id : {}, direction : {}",
-            attachmentId,
-            direction == tego_attachment_direction_sending ? "sending" : "receiving");
+        auto contactId = tegoUserIdToContactId(userId);
+
+        push_task([=]() -> void
+        {
+            auto contactUser = contactUserFromContactId(contactId);
+            Q_ASSERT(contactUser != nullptr);
+            auto conversationModel = contactUser->conversation();
+            Q_ASSERT(conversationModel != nullptr);
+
+            conversationModel->cancelAttachmentTransfer(attachmentId);
+        });
     }
 
     void on_attachment_complete(
@@ -575,10 +581,17 @@ namespace
         tego_attachment_id_t attachmentId,
         tego_attachment_direction_t direction)
     {
-        logger::println(
-            "File Transfer Complete id : {}, direction : {}",
-            attachmentId,
-            direction == tego_attachment_direction_sending ? "sending" : "receiving");
+        auto contactId = tegoUserIdToContactId(userId);
+
+        push_task([=]() -> void
+        {
+            auto contactUser = contactUserFromContactId(contactId);
+            Q_ASSERT(contactUser != nullptr);
+            auto conversationModel = contactUser->conversation();
+            Q_ASSERT(conversationModel != nullptr);
+
+            conversationModel->finishAttachmentTransfer(attachmentId);
+        });
     }
 
     void on_new_identity_created(

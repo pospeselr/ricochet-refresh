@@ -43,6 +43,7 @@ namespace shims
         {
             InvalidTransfer,
             Pending,
+            Rejected,
             InProgress,
             Cancelled,
             Finished,
@@ -61,6 +62,7 @@ namespace shims
 
         void sendFile();
         void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
+        void attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response);
         // cancelAttachmentTransfer neeeds to use a Qt type since it is invokable from QML
         static_assert(std::is_same_v<quint32, tego_attachment_id_t>);
         Q_INVOKABLE void cancelAttachmentTransfer(quint32 attachmentId);
@@ -102,6 +104,7 @@ namespace shims
         QList<MessageData> messages;
         int unreadCount = 0;
 
+        void emitDataChanged(int row);
         int indexOfIdentifier(tego_message_id_t messageId, bool isOutgoing) const;
     };
 }

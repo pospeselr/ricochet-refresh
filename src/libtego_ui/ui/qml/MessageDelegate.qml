@@ -144,59 +144,72 @@ Column {
             Rectangle {
                 id: transferField
                 visible: parent.childItem === this
+
                 width: 256
-                height: filename.height + progressBar.height + transferStatus.height
+                height: transferDisplay.height
 
                 color: "transparent"
 
-                Label {
-                    id: filename
+                Row {
                     x: 0
                     y: 0
-                    width: transferField.width - transferField.height - 6
-                    height: styleHelper.pointSize * 2.5
+                    width: parent.width
+                    height: parent.height
+                    spacing: 6
 
-                    text: model.transfer.file_name
-                    font.bold: true
-                    font.pointSize: styleHelper.pointSize
-                }
+                    Column {
+                        id: transferDisplay
 
-                ProgressBar {
-                    id: progressBar
-                    anchors.top: filename.bottom
-                    anchors.topMargin: 6
-                    anchors.bottomMargin: 6
-                    width: filename.width
-                    height: visible ? 8 : 0
+                        width: parent.width - cancelButton.width - parent.spacing
+                        spacing: 6
 
-                    visible: model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress
+                        Label {
+                            id: filename
 
-                    indeterminate: model.transfer.status === ConversationModel.Pending
-                    value: model.transfer.progressPercent;
-                }
+                            width: parent.width
+                            height: styleHelper.pointSize * 1.5
 
-                Label {
-                    id: transferStatus
-                    anchors.top: progressBar.bottom
-                    width: transferField.height
-                    height: styleHelper.pointSize * 2.5
+                            text: model.transfer.file_name
+                            font.bold: true
+                            font.pointSize: styleHelper.pointSize
+                        }
 
-                    text: model.transfer.statusString
-                    font.pointSize: filename.font.pointSize * 0.8;
-                    color: Qt.lighter(filename.color, 1.5)
-                }
+                        ProgressBar {
+                            id: progressBar
 
-                Button {
-                    id: cancelButton
-                    visible: (model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress)
-                    anchors.right : transferField.right
-                    width: visible ? transferField.height : 0
-                    height: visible ? transferField.height : 0
+                            width: parent.width
+                            height: visible ? 8 : 0
 
-                    text: "✕"
+                            visible: model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress
 
-                    onClicked: {
-                        contact.conversation.cancelAttachmentTransfer(model.transfer.id);
+                            indeterminate: model.transfer.status === ConversationModel.Pending
+                            value: model.transfer.progressPercent;
+                        }
+
+                        Label {
+                            id: transferStatus
+
+                            width: parent.width
+                            height: styleHelper.pointSize * 1.5
+
+                            text: model.transfer.statusString
+                            font.pointSize: filename.font.pointSize * 0.8;
+                            color: Qt.lighter(filename.color, 1.5)
+                        }
+                    }
+
+                    Button {
+                        id: cancelButton
+                        visible: (model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress)
+
+                        width: visible ? transferDisplay.height : 0
+                        height: visible ? transferDisplay.height : 0
+
+                        text: "✕"
+
+                        onClicked: {
+                            contact.conversation.cancelAttachmentTransfer(model.transfer.id);
+                        }
                     }
                 }
             }
