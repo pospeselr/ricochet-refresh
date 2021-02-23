@@ -50,6 +50,14 @@ namespace shims
         };
         Q_ENUM(TransferStatus);
 
+        enum TransferDirection
+        {
+            InvalidDirection,
+            Uploading,
+            Downloading,
+        };
+        Q_ENUM(TransferDirection);
+
         // impl QAbstractListModel
         virtual QHash<int,QByteArray> roleNames() const;
         virtual int rowCount(const QModelIndex &parent = QModelIndex()) const;
@@ -63,13 +71,15 @@ namespace shims
         void sendFile();
         // cancelAttachmentTransfer neeeds to use a Qt type since it is invokable from QML
         static_assert(std::is_same_v<quint32, tego_attachment_id_t>);
+        Q_INVOKABLE void tryAcceptAttachmentTransfer(quint32 attachmentId);
         Q_INVOKABLE void cancelAttachmentTransfer(quint32 attachmentId);
 
         void attachmentRequestReceived(tego_attachment_id_t attachmentId, QString fileName, QString fileHash, quint64 fileSize);
         void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
         void attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response);
         void attachmentRequestProgressUpdated(tego_attachment_id_t attachmentId, quint64 bytesTransferred);
-        void attachmentRequestTransferCompleted(tego_attachment_id_t attachmentId);
+        void attachmentRequestCompleted(tego_attachment_id_t attachmentId);
+        void attachmentRequestCancelled(tego_attachment_id_t attachmentId);
 
         void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
         void messageAcknowledged(tego_message_id_t messageId, bool accepted);
@@ -101,7 +111,7 @@ namespace shims
             qint64 fileSize = 0;
             QString fileHash = {};
             quint64 bytesTransferred = 0;
-            tego_attachment_direction_t transferDirection = tego_attachment_direction_sending;
+            TransferDirection transferDirection = InvalidDirection;;
             TransferStatus transferStatus = InvalidTransfer;
         };
 

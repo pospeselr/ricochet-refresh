@@ -160,7 +160,7 @@ Column {
                     Column {
                         id: transferDisplay
 
-                        width: parent.width - cancelButton.width - parent.spacing
+                        width: parent.width - (acceptButton.visible ? (acceptButton.width + parent.spacing) : 0) - parent.spacing - cancelButton.width
                         spacing: 6
 
                         Label {
@@ -195,6 +195,21 @@ Column {
                             text: model.transfer.statusString
                             font.pointSize: filename.font.pointSize * 0.8;
                             color: Qt.lighter(filename.color, 1.5)
+                        }
+                    }
+
+                    Button {
+                        id: acceptButton
+
+                        visible: model.transfer.status === ConversationModel.Pending && model.transfer.direction === ConversationModel.Downloading
+
+                        width: visible ? transferDisplay.height : 0
+                        height: visible ? transferDisplay.height : 0
+
+                        text: "⬇"
+
+                        onClicked: {
+                            contact.conversation.tryAcceptAttachmentTransfer(model.transfer.id);
                         }
                     }
 

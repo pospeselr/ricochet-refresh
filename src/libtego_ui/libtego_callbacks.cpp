@@ -561,7 +561,7 @@ namespace
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            conversationModel->cancelAttachmentTransfer(attachmentId);
+            conversationModel->attachmentRequestCancelled(attachmentId);
         });
     }
 
@@ -580,7 +580,7 @@ namespace
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            conversationModel->attachmentRequestTransferCompleted(attachmentId);
+            conversationModel->attachmentRequestCompleted(attachmentId);
         });
     }
 

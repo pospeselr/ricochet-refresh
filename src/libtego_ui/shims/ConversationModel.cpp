@@ -123,7 +123,7 @@ namespace shims
                         }
                     }();
                     transfer["progressPercent"] = double(message.bytesTransferred) / double(message.fileSize);
-                    transfer["direction"] = message.transferDirection == tego_attachment_direction_sending ? QStringLiteral("sending") : QStringLiteral("receiving");
+                    transfer["direction"] = message.transferDirection;
 
                     return transfer;
                 }
@@ -251,10 +251,53 @@ namespace shims
                 md.fileSize = fileSize;
                 md.fileHash = QString::fromStdString(tego::to_string(fileHash.get()));
                 md.transferStatus = Pending;
+                md.transferDirection = Uploading;
 
                 this->beginInsertRows(QModelIndex(), 0, 0);
                 this->messages.prepend(std::move(md));
                 this->endInsertRows();
+            }
+            catch(const std::runtime_error& err)
+            {
+                qWarning() << err.what();
+            }
+        }
+    }
+
+    void ConversationModel::tryAcceptAttachmentTransfer(quint32 attachmentId)
+    {
+        logger::println("tryAcceptAttachmentTransfer {}", attachmentId);
+    }
+
+    void ConversationModel::cancelAttachmentTransfer(tego_attachment_id_t attachmentId)
+    {
+        // we get the cancelled callback if we cancel or if the other user cancelled,
+        // so ensure we only do work if it was the other preson cancelling
+        auto row = this->indexOfMessage(attachmentId);
+        if (row < 0)
+        {
+            return;
+        }
+
+        MessageData &data = messages[row];
+        if (data.transferStatus != Cancelled)
+        {
+            data.transferStatus = Cancelled;
+            emitDataChanged(row);
+
+            logger::println("request to cancel attachment transfer: {}", attachmentId);
+
+            auto userIdentity = shims::UserIdentity::userIdentity;
+            auto context = userIdentity->getContext();
+            const auto userId = this->contactUser->toTegoUserId();
+
+            try
+            {
+                tego_context_cancel_attachment_transfer(
+                    context,
+                    userId.get(),
+                    attachmentId,
+                    tego::throw_on_error());
             }
             catch(const std::runtime_error& err)
             {
@@ -276,6 +319,7 @@ namespace shims
         md.fileName = std::move(fileName);
         md.fileHash = std::move(fileHash);
         md.fileSize = fileSize;
+        md.transferDirection = Downloading;
         md.transferStatus = Pending;
 
         this->beginInsertRows(QModelIndex(), 0, 0);
@@ -316,43 +360,6 @@ namespace shims
         emitDataChanged(row);
     }
 
-    void ConversationModel::cancelAttachmentTransfer(tego_attachment_id_t attachmentId)
-    {
-        // we get the cancelled callback if we cancel or if the other user cancelled,
-        // so ensure we only do work if it was the other preson cancelling
-        auto row = this->indexOfMessage(attachmentId);
-        if (row < 0)
-        {
-            return;
-        }
-
-        MessageData &data = messages[row];
-        if (data.transferStatus != Cancelled)
-        {
-            data.transferStatus = Cancelled;
-            emitDataChanged(row);
-
-            logger::println("request to cancel attachment transfer: {}", attachmentId);
-
-            auto userIdentity = shims::UserIdentity::userIdentity;
-            auto context = userIdentity->getContext();
-            const auto userId = this->contactUser->toTegoUserId();
-
-            try
-            {
-                tego_context_cancel_attachment_transfer(
-                    context,
-                    userId.get(),
-                    attachmentId,
-                    tego::throw_on_error());
-            }
-            catch(const std::runtime_error& err)
-            {
-                qWarning() << err.what();
-            }
-        }
-    }
-
     void ConversationModel::attachmentRequestProgressUpdated(tego_attachment_id_t attachmentId, quint64 bytesTransferred)
     {
         auto row = this->indexOfMessage(attachmentId);
@@ -366,13 +373,32 @@ namespace shims
         }
     }
 
-    void ConversationModel::attachmentRequestTransferCompleted(tego_attachment_id_t attachmentId)
+    void ConversationModel::attachmentRequestCompleted(tego_attachment_id_t attachmentId)
     {
         auto row = this->indexOfMessage(attachmentId);
         if (row >= 0)
         {
             MessageData &data = messages[row];
             data.transferStatus = Finished;
+
+            emitDataChanged(row);
+        }
+    }
+
+    void ConversationModel::attachmentRequestCancelled(tego_attachment_id_t attachmentId)
+    {
+        auto row = this->indexOfOutgoingMessage(attachmentId);
+        if (row >= 0)
+        {
+            auto& data = messages[row];
+            if (data.transferStatus == Pending)
+            {
+                data.transferStatus = Rejected;
+            }
+            else
+            {
+                data.transferStatus = Cancelled;
+            }
 
             emitDataChanged(row);
         }
