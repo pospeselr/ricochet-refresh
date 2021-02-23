@@ -228,7 +228,6 @@ namespace shims
 
             try
             {
-
                 tego_context_send_attachment_request(
                     context,
                     userId.get(),
@@ -267,6 +266,47 @@ namespace shims
     void ConversationModel::tryAcceptAttachmentTransfer(quint32 attachmentId)
     {
         logger::println("tryAcceptAttachmentTransfer {}", attachmentId);
+        auto row = this->indexOfIncomingMessage(attachmentId);
+        if (row < 0)
+        {
+            return;
+        }
+
+        auto& data = messages[row];
+
+        auto proposedDest = QString("%1/%2").arg(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)).arg(data.fileName);
+
+        auto dest = QFileDialog::getSaveFileName(
+            nullptr,
+            tr("Save File"),
+            proposedDest);
+
+        if (!dest.isEmpty())
+        {
+            auto userIdentity = shims::UserIdentity::userIdentity;
+            auto context = userIdentity->getContext();
+            const auto sender = this->contactUser->toTegoUserId();
+            const auto destination = dest.toUtf8();
+
+            try
+            {
+                tego_context_respond_attachment_request(
+                    context,
+                    sender.get(),
+                    attachmentId,
+                    tego_attachment_response_accept,
+                    destination.data(),
+                    destination.size(),
+                    tego::throw_on_error());
+            }
+            catch(const std::runtime_error& err)
+            {
+                qWarning() << err.what();
+            }
+
+            data.transferStatus = Pending;
+            emitDataChanged(row);
+        }
     }
 
     void ConversationModel::cancelAttachmentTransfer(tego_attachment_id_t attachmentId)
