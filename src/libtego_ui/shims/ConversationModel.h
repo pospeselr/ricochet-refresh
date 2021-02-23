@@ -73,6 +73,7 @@ namespace shims
         static_assert(std::is_same_v<quint32, tego_attachment_id_t>);
         Q_INVOKABLE void tryAcceptAttachmentTransfer(quint32 attachmentId);
         Q_INVOKABLE void cancelAttachmentTransfer(quint32 attachmentId);
+        Q_INVOKABLE void rejectAttachmentTransfer(quint32 attachmentId);
 
         void attachmentRequestReceived(tego_attachment_id_t attachmentId, QString fileName, QString fileHash, quint64 fileSize);
         void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);

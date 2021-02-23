@@ -265,7 +265,6 @@ namespace shims
 
     void ConversationModel::tryAcceptAttachmentTransfer(quint32 attachmentId)
     {
-        logger::println("tryAcceptAttachmentTransfer {}", attachmentId);
         auto row = this->indexOfIncomingMessage(attachmentId);
         if (row < 0)
         {
@@ -344,6 +343,40 @@ namespace shims
                 qWarning() << err.what();
             }
         }
+    }
+
+    void ConversationModel::rejectAttachmentTransfer(quint32 attachmentId)
+    {
+        auto row = this->indexOfIncomingMessage(attachmentId);
+        if (row < 0)
+        {
+            return;
+        }
+
+        auto& data = messages[row];
+
+        auto userIdentity = shims::UserIdentity::userIdentity;
+        auto context = userIdentity->getContext();
+        const auto sender = this->contactUser->toTegoUserId();
+
+        try
+        {
+            tego_context_respond_attachment_request(
+                context,
+                sender.get(),
+                attachmentId,
+                tego_attachment_response_reject,
+                nullptr,
+                0,
+                tego::throw_on_error());
+        }
+        catch(const std::runtime_error& err)
+        {
+            qWarning() << err.what();
+        }
+
+        data.transferStatus = Rejected;
+        emitDataChanged(row);
     }
 
     void ConversationModel::attachmentRequestReceived(tego_attachment_id_t attachmentId, QString fileName, QString fileHash, quint64 fileSize)

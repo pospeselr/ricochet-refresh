@@ -223,7 +223,10 @@ Column {
                         text: "✕"
 
                         onClicked: {
-                            contact.conversation.cancelAttachmentTransfer(model.transfer.id);
+                            if (acceptButton.visible)
+                                contact.conversation.rejectAttachmentTransfer(model.transfer.id);
+                            else
+                                contact.conversation.cancelAttachmentTransfer(model.transfer.id);
                         }
                     }
                 }
