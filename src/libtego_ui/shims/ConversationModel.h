@@ -47,6 +47,9 @@ namespace shims
             InProgress,
             Cancelled,
             Finished,
+            UnknownFailure,
+            BadFileHash,
+            NetworkError,
         };
         Q_ENUM(TransferStatus);
 
@@ -79,8 +82,7 @@ namespace shims
         void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
         void attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response);
         void attachmentRequestProgressUpdated(tego_attachment_id_t attachmentId, quint64 bytesTransferred);
-        void attachmentRequestCompleted(tego_attachment_id_t attachmentId);
-        void attachmentRequestCancelled(tego_attachment_id_t attachmentId);
+        void attachmentRequestCompleted(tego_attachment_id_t attachmentId, tego_attachment_result_t result);
 
         void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
         void messageAcknowledged(tego_message_id_t messageId, bool accepted);

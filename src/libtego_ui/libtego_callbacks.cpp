@@ -546,25 +546,6 @@ namespace
             bytesTotal);
     }
 
-    void on_attachment_cancelled(
-        tego_context_t* context,
-        const tego_user_id_t* userId,
-        tego_attachment_id_t attachmentId,
-        tego_attachment_direction_t direction)
-    {
-        auto contactId = tegoUserIdToContactId(userId);
-
-        push_task([=]() -> void
-        {
-            auto contactUser = contactUserFromContactId(contactId);
-            Q_ASSERT(contactUser != nullptr);
-            auto conversationModel = contactUser->conversation();
-            Q_ASSERT(conversationModel != nullptr);
-
-
-        });
-    }
-
     void on_attachment_complete(
         tego_context_t* context,
         const tego_user_id_t* userId,
@@ -581,24 +562,7 @@ namespace
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            switch(result)
-            {
-                case tego_attachment_result_success:
-                    conversationModel->attachmentRequestCompleted(attachmentId);
-                    break;
-                case tego_attachment_result_failure:
-                    logger::println("transfer complete: generic failure");
-                    break;
-                case tego_attachment_result_cancelled:
-                    conversationModel->attachmentRequestCancelled(attachmentId);
-                    break;
-                case tego_attachment_result_bad_hash:
-                    logger::println("transfer complete: bad hash");
-                    break;
-                case tego_attachment_result_network_error:
-                    logger::println("transfer complete: network error");
-                    break;
-            }
+            conversationModel->attachmentRequestCompleted(attachmentId, result);
         });
     }
 

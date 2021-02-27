@@ -111,6 +111,7 @@ namespace shims
                         switch(message.transferStatus)
                         {
                             case Pending: return tr("Pending");
+                            case Rejected: return tr("Rejected");
                             case InProgress:
                             {
                                 const auto locale = QLocale::system();
@@ -118,7 +119,10 @@ namespace shims
                             }
                             case Cancelled: return tr("Cancelled");
                             case Finished: return tr("Complete");
-                            case Rejected: return tr("Rejected");
+                            case UnknownFailure: return tr("Unkown Failure");
+                            case BadFileHash: return tr("Bad File Hash");
+                            case NetworkError: return tr("Network Error");
+
                             default: return tr("Invalid");
                         }
                     }();
@@ -446,33 +450,38 @@ namespace shims
         }
     }
 
-    void ConversationModel::attachmentRequestCompleted(tego_attachment_id_t attachmentId)
+    void ConversationModel::attachmentRequestCompleted(
+        tego_attachment_id_t attachmentId,  tego_attachment_result_t result)
     {
         auto row = this->indexOfMessage(attachmentId);
         if (row >= 0)
         {
-            MessageData &data = messages[row];
-            data.transferStatus = Finished;
-
-            emitDataChanged(row);
-        }
-    }
-
-    void ConversationModel::attachmentRequestCancelled(tego_attachment_id_t attachmentId)
-    {
-        auto row = this->indexOfOutgoingMessage(attachmentId);
-        if (row >= 0)
-        {
-            auto& data = messages[row];
-            if (data.transferStatus == Pending)
+            auto &data = messages[row];
+            switch(result)
             {
-                data.transferStatus = Rejected;
+                case tego_attachment_result_success:
+                    data.transferStatus = Finished;
+                    break;
+                case tego_attachment_result_failure:
+                    data.transferStatus = UnknownFailure;
+                    break;
+                case tego_attachment_result_cancelled:
+                    if (data.transferStatus == Pending)
+                    {
+                        data.transferStatus = Rejected;
+                    }
+                    else
+                    {
+                        data.transferStatus = Cancelled;
+                    }
+                    break;
+                case tego_attachment_result_bad_hash:
+                    data.transferStatus = BadFileHash;
+                    break;
+                case tego_attachment_result_network_error:
+                    data.transferStatus = NetworkError;
+                    break;
             }
-            else
-            {
-                data.transferStatus = Cancelled;
-            }
-
             emitDataChanged(row);
         }
     }
