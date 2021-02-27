@@ -143,28 +143,18 @@ void ConversationModel::setContact(ContactUser *contact)
                             bytesTotal);
                     });
 
-                connect(
-                    fc,
-                    &Protocol::FileChannel::fileTransferCancelled,
-                    [this](tego_attachment_id_t id, tego_attachment_direction_t direction) -> void
-                    {
-                        auto userId = this->contact()->toTegoUserId();
-                        g_globals.context->callback_registry_.emit_attachment_cancelled(
-                            userId.release(),
-                            id,
-                            direction);
-                    });
 
                 connect(
                     fc,
                     &Protocol::FileChannel::fileTransferFinished,
-                    [this](tego_attachment_id_t id, tego_attachment_direction_t direction) -> void
+                    [this](tego_attachment_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t result) -> void
                     {
                         auto userId = this->contact()->toTegoUserId();
                         g_globals.context->callback_registry_.emit_attachment_complete(
                             userId.release(),
                             id,
-                            direction);
+                            direction,
+                            result);
                     });
 
                 // todo, retry sending messages after the FileChannel reconnects

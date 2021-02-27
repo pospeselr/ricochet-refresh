@@ -62,8 +62,7 @@ signals:
     void fileTransferAcknowledged(file_id_t id, bool ack);
     void fileTransferRequestResponded(file_id_t id, tego_attachment_response_t response);
     void fileTransferProgress(file_id_t id, tego_attachment_direction_t direction, uint64_t bytesTransmitted, uint64_t bytesTotal);
-    void fileTransferCancelled(file_id_t id, tego_attachment_direction_t direction);
-    void fileTransferFinished(file_id_t id, tego_attachment_direction_t direction);
+    void fileTransferFinished(file_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t);
 
 protected:
     virtual bool allowInboundChannelRequest(const Data::Control::OpenChannel *request, Data::Control::ChannelResult *result);

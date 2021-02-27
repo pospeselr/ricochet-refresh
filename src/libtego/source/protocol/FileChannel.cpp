@@ -60,7 +60,7 @@ FileChannel::outgoing_transfer_record::outgoing_transfer_record(
 void FileChannel::outgoing_transfer_record::cancel(FileChannel* channel)
 {
     // emit signal to notify callback system
-    emit channel->fileTransferCancelled(this->id, tego_attachment_direction_sending);
+    emit channel->fileTransferFinished(this->id, tego_attachment_direction_sending, tego_attachment_result_cancelled);
 }
 
 // Incoming Transfer Record
@@ -106,7 +106,7 @@ void FileChannel::incoming_transfer_record::cancel(FileChannel* channel)
     QFile::remove(QString::fromStdString(partial));
 
     // emit signal to notify callback system
-    emit channel->fileTransferCancelled(this->id, tego_attachment_direction_receiving);
+    emit channel->fileTransferFinished(this->id, tego_attachment_direction_receiving, tego_attachment_result_cancelled);
 }
 
 // File Channel
@@ -170,10 +170,10 @@ void FileChannel::receivePacket(const QByteArray &packet)
         handleFileHeaderAck(message.file_header_ack());
     } else if (message.has_file_chunk()) {
         handleFileChunk(message.file_chunk());
-    } else if (message.has_file_chunk_ack()) {
-        handleFileChunkAck(message.file_chunk_ack());
     } else if (message.has_file_header_response()) {
         handleFileHeaderResponse(message.file_header_response());
+    } else if (message.has_file_chunk_ack()) {
+        handleFileChunkAck(message.file_chunk_ack());
     } else if (message.has_file_cancel_notification()) {
         handleFileCancelNotification(message.file_cancel_notification());
     } else {
@@ -368,7 +368,7 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
                 incomingTransfers.erase(it);
 
                 // notify transfer finisehd
-                emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving);
+                emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_success);
             }
         }
     }
@@ -395,7 +395,7 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     if (otr.finished())
     {
         outgoingTransfers.erase(it);
-        emit this->fileTransferFinished(id, tego_attachment_direction_sending);
+        emit this->fileTransferFinished(id, tego_attachment_direction_sending, tego_attachment_result_success);
         return;
     }
 

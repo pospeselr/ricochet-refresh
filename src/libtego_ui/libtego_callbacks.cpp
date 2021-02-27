@@ -561,7 +561,7 @@ namespace
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            conversationModel->attachmentRequestCancelled(attachmentId);
+
         });
     }
 
@@ -569,7 +569,8 @@ namespace
         tego_context_t* context,
         const tego_user_id_t* userId,
         tego_attachment_id_t attachmentId,
-        tego_attachment_direction_t direction)
+        tego_attachment_direction_t direction,
+        tego_attachment_result_t result)
     {
         auto contactId = tegoUserIdToContactId(userId);
 
@@ -580,7 +581,24 @@ namespace
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            conversationModel->attachmentRequestCompleted(attachmentId);
+            switch(result)
+            {
+                case tego_attachment_result_success:
+                    conversationModel->attachmentRequestCompleted(attachmentId);
+                    break;
+                case tego_attachment_result_failure:
+                    logger::println("transfer complete: generic failure");
+                    break;
+                case tego_attachment_result_cancelled:
+                    conversationModel->attachmentRequestCancelled(attachmentId);
+                    break;
+                case tego_attachment_result_bad_hash:
+                    logger::println("transfer complete: bad hash");
+                    break;
+                case tego_attachment_result_network_error:
+                    logger::println("transfer complete: network error");
+                    break;
+            }
         });
     }
 
@@ -683,11 +701,6 @@ void init_libtego_callbacks(tego_context_t* context)
     tego_context_set_attachment_progress_callback(
         context,
         &on_attachment_progress,
-        tego::throw_on_error());
-
-    tego_context_set_attachment_cancelled_callback(
-        context,
-        &on_attachment_cancelled,
         tego::throw_on_error());
 
     tego_context_set_attachment_complete_callback(
