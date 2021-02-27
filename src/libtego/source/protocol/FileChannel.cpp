@@ -344,31 +344,32 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
                 tego_file_hash fileHash(itr.stream);
                 itr.stream.close();
 
-                // delete file if calculated hash doesn't match expected
                 if (fileHash.to_string() != itr.sha3_512)
                 {
-                    //todo: handle this better, error should probably surface to user yeah?
-                    QDir dir;
-                    dir.remove(QString::fromStdString(itr.partial_dest()));
-                    closeChannel();
-                    TEGO_THROW_MSG("Hash of completed file {} is {}, was expecting {}", itr.partial_dest(), fileHash.to_string(),itr.sha3_512);
-                    return;
+                    // delete file if calculated hash doesn't match expected
+                    QFile::remove(QString::fromStdString(itr.partial_dest()));
+                    emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_bad_hash);
                 }
-
-                // if a file already exists at our final destination, then remove it
-                const auto qDest = QString::fromStdString(itr.dest);
-                if (QFile::exists(qDest))
+                else
                 {
-                    TEGO_THROW_IF_FALSE(QFile::remove(qDest));
+                    // if a file already exists at our final destination, then remove it
+                    const auto qDest = QString::fromStdString(itr.dest);
+                    if (QFile::exists(qDest))
+                    {
+                        QFile::remove(qDest);
+                    }
+
+                    const auto qPartialDest = QString::fromStdString(itr.partial_dest());
+                    if(QFile::rename(qPartialDest, qDest))
+                    {
+                        emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_success);
+                    }
+                    else
+                    {
+                        emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_failure);
+                    }
                 }
-
-                const auto qPartialDest = QString::fromStdString(itr.partial_dest());
-                TEGO_THROW_IF_FALSE(QFile::rename(qPartialDest, qDest));
-
                 incomingTransfers.erase(it);
-
-                // notify transfer finisehd
-                emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_success);
             }
         }
     }
