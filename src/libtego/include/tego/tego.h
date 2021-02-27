@@ -1249,7 +1249,8 @@ typedef enum
 {
     tego_attachment_result_success,         // file transfer completed successfully
     tego_attachment_result_failure,         // file transfer failed for unknown reason
-    tego_attachment_result_cancelled,       // file transfer was cancelled by one of the participants
+    tego_attachment_result_cancelled,       // file transfer was cancelled by one of the participants after it had started
+    tego_attachment_result_rejected,        // file transfer request was rejected by the receiver
     tego_attachment_result_bad_hash,        // file transfer completed but final file's hash did not match the one advertised
     tego_attachment_result_network_error,   // file transfer failed due to connectivity problem
 } tego_attachment_result_t;

@@ -85,7 +85,6 @@ private:
         std::ifstream stream;
 
         inline bool finished() const { return offset == size; }
-        void cancel(FileChannel* channel);
     };
 
     struct incoming_transfer_record
@@ -95,6 +94,11 @@ private:
             qint64 fileSize,
             const std::string& fileHash,
             chunk_id_t chunkCount);
+        // explicit destructor defined, so we need to explicitly define a move constructor
+		// for usage with std::map
+        incoming_transfer_record(incoming_transfer_record&&) = default;
+
+        ~incoming_transfer_record();
 
         const file_id_t id;
         const qint64 size;
@@ -108,7 +112,6 @@ private:
 
         std::string partial_dest() const;
         void open_stream(const std::string& dest);
-        void cancel(FileChannel* channel);
     };
     // 63 kb, max packet size is UINT16_MAX (ak 65535, 64k - 1) so leave space for other data
     constexpr static qint64 FileMaxChunkSize = 63*1024;
@@ -127,7 +130,7 @@ private:
     void handleFileHeaderResponse(const Data::File::FileHeaderResponse &message);
     void handleFileChunk(const Data::File::FileChunk &message);
     void handleFileChunkAck(const Data::File::FileChunkAck &message);
-    void handleFileCancelNotification(const Data::File::FileCancelNotification &message);
+    void handleFileTransferCompleteNotification(const Data::File::FileTransferCompleteNotification &message);
     bool sendNextChunk(file_id_t id);
 };
 

@@ -466,20 +466,19 @@ namespace shims
                     data.transferStatus = UnknownFailure;
                     break;
                 case tego_attachment_result_cancelled:
-                    if (data.transferStatus == Pending)
-                    {
-                        data.transferStatus = Rejected;
-                    }
-                    else
-                    {
-                        data.transferStatus = Cancelled;
-                    }
+                    data.transferStatus = Cancelled;
+                    break;
+                case tego_attachment_result_rejected:
+                    data.transferStatus = Rejected;
                     break;
                 case tego_attachment_result_bad_hash:
                     data.transferStatus = BadFileHash;
                     break;
                 case tego_attachment_result_network_error:
                     data.transferStatus = NetworkError;
+                    break;
+                default:
+                    data.transferStatus = InvalidTransfer;
                     break;
             }
             emitDataChanged(row);
