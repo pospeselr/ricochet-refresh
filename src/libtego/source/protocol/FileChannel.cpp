@@ -69,11 +69,9 @@ FileChannel::outgoing_transfer_record::outgoing_transfer_record(
 FileChannel::incoming_transfer_record::incoming_transfer_record(
     file_id_t id,
     qint64 fileSize,
-    const std::string& fileHash,
-    chunk_id_t chunkCount)
+    const std::string& fileHash)
 : id(id)
 , size(fileSize)
-, missing_chunks(chunkCount)
 , sha3_512(fileHash)
 , stream()
 { }
@@ -113,13 +111,7 @@ void FileChannel::incoming_transfer_record::open_stream(const std::string& dest)
 
 FileChannel::FileChannel(Direction direction, Connection *connection)
     : Channel(QStringLiteral("im.ricochet.file-transfer"), direction, connection)
-{
-}
-
-size_t FileChannel::fsize_to_chunks(size_t sz)
-{
-    return (sz + (FileMaxChunkSize - 1)) / FileMaxChunkSize;
-}
+{ }
 
 bool FileChannel::allowInboundChannelRequest(
     const Data::Control::OpenChannel*,
@@ -189,7 +181,7 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
 
     if (direction() != Inbound) {
         qWarning() << "Rejected inbound message (FileHeader) on an outbound channel";
-    } else if (!message.has_size() || !message.has_chunk_count()) {
+    } else if (!message.has_size()) {
         /* rationale:
          *  - if there's no size, we know when we've reached the end when cur_chunk == n_chunks
          *  - if there's no chunk count, we know when we've reached the end when total_bytes >= size
@@ -200,8 +192,6 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
         qWarning() << "Rejected file header with missing hash (sha3_512) - cannot validate";
     } else if (!message.has_file_id()) {
         qWarning() << "Rejected file header with missing id";
-    } else if (!message.has_chunk_count()) {
-        qWarning() << "Rejected file header with missing chunk count";
     } else if (!message.has_name()) {
         qWarning() << "Rejected file header with missing name";
     } else if (message.name().find("..") != std::string::npos) {
@@ -210,7 +200,7 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
         qWarning() << "Rejected file header with name containing '/'";
     } else {
         const auto id = message.file_id();
-        incoming_transfer_record ifr(id, message.size(), message.sha3_512(), message.chunk_count());
+        incoming_transfer_record ifr(id, message.size(), message.sha3_512());
 
         // TODO: change the protocol to send a byte buffer of the exact size?
         TEGO_THROW_IF_FALSE_MSG(ifr.sha3_512.size() == (tego_file_hash::STRING_SIZE - 1));
@@ -449,7 +439,6 @@ bool FileChannel::sendFileWithId(QString file_uri,
     }
 
     const auto file_size = fi.size();
-    const auto file_chunks = fsize_to_chunks(file_size);
 
     // create our record
     outgoing_transfer_record qf(file_id, file_path, file_size);
@@ -463,7 +452,6 @@ bool FileChannel::sendFileWithId(QString file_uri,
     auto header = std::make_unique<Data::File::FileHeader>();
     header->set_file_id(file_id);
     header->set_size(file_size);
-    header->set_chunk_count(file_chunks);
     header->set_sha3_512(file_hash.toStdString());
     header->set_name(fi.fileName().toStdString());
 

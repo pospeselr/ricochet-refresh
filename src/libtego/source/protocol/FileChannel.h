@@ -69,7 +69,6 @@ protected:
     virtual bool allowOutboundChannelRequest(Data::Control::OpenChannel *request);
     virtual void receivePacket(const QByteArray &packet);
 private:
-    size_t fsize_to_chunks(size_t sz);
 
     struct outgoing_transfer_record
     {
@@ -93,8 +92,7 @@ private:
         incoming_transfer_record(
             file_id_t id,
             qint64 fileSize,
-            const std::string& fileHash,
-            chunk_id_t chunkCount);
+            const std::string& fileHash);
         // explicit destructor defined, so we need to explicitly define a move constructor
 		// for usage with std::map
         incoming_transfer_record(incoming_transfer_record&&) = default;
@@ -105,8 +103,6 @@ private:
 
         const file_id_t id;
         const qint64 size;
-        chunk_id_t cur_chunk;
-        chunk_id_t missing_chunks;
         std::string dest; // destination to save to
         const std::string sha3_512;
 
