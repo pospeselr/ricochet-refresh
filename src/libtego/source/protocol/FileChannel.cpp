@@ -44,6 +44,14 @@ using tego::g_globals;
 
 using namespace Protocol;
 
+static void logTransferStats(qint64 bytes, std::chrono::time_point<std::chrono::system_clock> beginTime)
+{
+    const auto kilobytes = bytes / 1024.0;
+    const auto seconds = std::chrono::duration_cast<std::chrono::duration<double>>( std::chrono::system_clock::now() - beginTime).count();
+
+    logger::println("Transfer Complete: {{ size : {} kilobytes, duration : {} seconds, rate : {} kilobytes / second}}", kilobytes, seconds, kilobytes / seconds);
+};
+
 // Outgoing Transfer Record
 
 FileChannel::outgoing_transfer_record::outgoing_transfer_record(
@@ -53,7 +61,6 @@ FileChannel::outgoing_transfer_record::outgoing_transfer_record(
 : id(id)
 , size(fileSize)
 , offset(0)
-, cur_chunk(0)
 , stream(filePath, std::ios::in | std::ios::binary)
 { }
 
@@ -66,7 +73,6 @@ FileChannel::incoming_transfer_record::incoming_transfer_record(
     chunk_id_t chunkCount)
 : id(id)
 , size(fileSize)
-, cur_chunk(0)
 , missing_chunks(chunkCount)
 , sha3_512(fileHash)
 , stream()
@@ -270,6 +276,7 @@ void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse 
     if (response == tego_attachment_response_accept)
     {
         sendNextChunk(id);
+        it->second.beginTime = std::chrono::system_clock::now();
     }
     else
     {
@@ -286,100 +293,88 @@ void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse 
 
 void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 {
-    auto response = std::make_unique<Data::File::FileChunkAck>();
-    response->set_file_chunk_id(message.chunk_id());
-    response->set_file_id(message.file_id());
-    response->set_accepted(false);
+
 
     auto it = incomingTransfers.find(message.file_id());
     if (it == incomingTransfers.end()) {
         qWarning() << "rejecting chunk for unknown file";
-        response->set_accepted(false);
+        return;
     }
     else if (message.chunk_size() > FileMaxChunkSize ||
         message.chunk_size() != message.chunk_data().length())
     {
         qWarning() << "rejecting chunk because size mismatch";
-        response->set_accepted(false);
+        return;
     }
     else
     {
-        tego_file_hash chunkHash(
-            reinterpret_cast<uint8_t const*>(message.chunk_data().c_str()),
-            reinterpret_cast<uint8_t const*>(message.chunk_data().c_str()) + message.chunk_size());
+        auto& itr = it->second;
+        itr.stream.write(message.chunk_data().c_str(), message.chunk_size());
 
-        logger::println("Receiving file:chunk {}:{} with hash: {}", message.file_id(), message.chunk_id(), chunkHash.to_string());
+        // emit progress callback
+        const auto fileId = message.file_id();
+        const auto written = itr.stream.tellg();
+        const auto total = itr.size;
 
-        if (chunkHash.to_string() != message.sha3_512())
+        emit this->fileTransferProgress(fileId, tego_attachment_direction_receiving, written, total);
+
+        auto response = std::make_unique<Data::File::FileChunkAck>();
+        response->set_file_id(message.file_id());
+        response->set_bytes_received(written);
+
+        Data::File::Packet packet;
+        packet.set_allocated_file_chunk_ack(response.release());
+        Channel::sendMessage(packet);
+
+        if (written == total)
         {
-            response->set_accepted(false);
-        }
-        else
-        {
-            response->set_accepted(true);
+            /* sha3_512 validation */
 
-            auto& itr = it->second;
-            itr.stream.write(message.chunk_data().c_str(), message.chunk_size());
-            itr.missing_chunks--;
+            // reset the read/write stream and calculate the file hash
+            itr.stream.seekg(0);
+            tego_file_hash fileHash(itr.stream);
+            itr.stream.close();
 
-            // emit progress callback
-            const auto fileId = message.file_id();
-            const auto written = message.chunk_id() * FileMaxChunkSize + message.chunk_size();
-            const auto total = itr.size;
-
-            emit this->fileTransferProgress(fileId, tego_attachment_direction_receiving, written, total);
-
-            if (itr.missing_chunks == 0)
+            if (fileHash.to_string() != itr.sha3_512)
             {
-                /* sha3_512 validation */
-
-                // reset the read/write stream and calculate the file hash
-                itr.stream.seekg(0);
-                tego_file_hash fileHash(itr.stream);
-                itr.stream.close();
-
-                if (fileHash.to_string() != itr.sha3_512)
+                // delete file if calculated hash doesn't match expected
+                QFile::remove(QString::fromStdString(itr.partial_dest()));
+                emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_bad_hash);
+            }
+            else
+            {
+                // if a file already exists at our final destination, then remove it
+                const auto qDest = QString::fromStdString(itr.dest);
+                if (QFile::exists(qDest))
                 {
-                    // delete file if calculated hash doesn't match expected
-                    QFile::remove(QString::fromStdString(itr.partial_dest()));
-                    emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_bad_hash);
+                    QFile::remove(qDest);
+                }
+
+                const auto qPartialDest = QString::fromStdString(itr.partial_dest());
+                if(QFile::rename(qPartialDest, qDest))
+                {
+                    emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_success);
+                    logTransferStats(itr.size, itr.beginTime);
                 }
                 else
                 {
-                    // if a file already exists at our final destination, then remove it
-                    const auto qDest = QString::fromStdString(itr.dest);
-                    if (QFile::exists(qDest))
-                    {
-                        QFile::remove(qDest);
-                    }
-
-                    const auto qPartialDest = QString::fromStdString(itr.partial_dest());
-                    if(QFile::rename(qPartialDest, qDest))
-                    {
-                        emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_success);
-                    }
-                    else
-                    {
-                        emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_failure);
-                    }
+                    emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_failure);
                 }
-                incomingTransfers.erase(it);
-
-                // send complete notification to remote user
-                auto notification = std::make_unique<Data::File::FileTransferCompleteNotification>();
-                notification->set_file_id(fileId);
-                notification->set_result(Protocol::Data::File::Success);
-
-                Data::File::Packet packet;
-                packet.set_allocated_file_transfer_complete_notification(notification.release());
-                Channel::sendMessage(packet);
             }
+            incomingTransfers.erase(it);
+
+            // send complete notification to remote user
+            auto notification = std::make_unique<Data::File::FileTransferCompleteNotification>();
+            notification->set_file_id(fileId);
+            notification->set_result(Protocol::Data::File::Success);
+
+            Data::File::Packet packet;
+            packet.set_allocated_file_transfer_complete_notification(notification.release());
+            Channel::sendMessage(packet);
         }
     }
 
-    Data::File::Packet packet;
-    packet.set_allocated_file_chunk_ack(response.release());
-    Channel::sendMessage(packet);
+
 }
 
 void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
@@ -387,32 +382,14 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     const auto id = message.file_id();
 
     auto it = outgoingTransfers.find(id);
-    if (it == outgoingTransfers.end() ||
-        it->second.cur_chunk != message.file_chunk_id())
+    if (it == outgoingTransfers.end())
     {
         qWarning() << "recieved ack for a chunk we never sent";
         return;
     }
-    auto& otr = it->second;
 
-    // see if we are done sending chunks
-    if (otr.finished())
-    {
-        outgoingTransfers.erase(it);
-        emit this->fileTransferFinished(id, tego_attachment_direction_sending, tego_attachment_result_success);
-        return;
-    }
-
-    // increment chunk index for sendChunkWithId
-    if(message.accepted())
-    {
-        otr.cur_chunk++;
-        sendNextChunk(id);
-    }
-    else
-    {
-        outgoingTransfers.erase(it);
-    }
+    const auto& otr = it->second;
+    emit this->fileTransferProgress(otr.id, tego_attachment_direction_receiving, message.bytes_received(), otr.size);
 }
 
 // verify that our tego_attachment_result_t enum matches the FileTransferResult enum
@@ -431,17 +408,16 @@ void FileChannel::handleFileTransferCompleteNotification(const Data::File::FileT
 {
     const auto id = message.file_id();
 
+    Q_ASSERT(direction() == Outbound);
+
     // first look for an outgoing transfer with this id and cancel, erase it
     if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
     {
+        const auto& otr = it->second;
+        logTransferStats(otr.size, otr.beginTime);
+
         outgoingTransfers.erase(it);
         emit fileTransferFinished(id, tego_attachment_direction_sending, static_cast<tego_attachment_result_t>(message.result()));
-    }
-    // next look for an incoming transfer with this id and cancel, erase it
-    else if (auto it = incomingTransfers.find(id); it != incomingTransfers.end())
-    {
-        incomingTransfers.erase(it);
-        emit fileTransferFinished(id, tego_attachment_direction_receiving, static_cast<tego_attachment_result_t>(message.result()));
     }
     else
     {
@@ -505,6 +481,8 @@ void FileChannel::acceptFile(tego_attachment_id_t fileId, const std::string& des
     auto it = incomingTransfers.find(fileId);
     TEGO_THROW_IF_FALSE(it != incomingTransfers.end());
     auto& itr = it->second;
+
+    itr.beginTime = std::chrono::system_clock::now();
     itr.open_stream(dest);
 
     auto response = std::make_unique<Data::File::FileHeaderResponse>();
@@ -569,41 +547,33 @@ bool FileChannel::cancelTransfer(tego_attachment_id_t fileId)
     return true;
 }
 
-bool FileChannel::sendNextChunk(file_id_t id)
+void FileChannel::sendNextChunk(file_id_t id)
 {
     if (direction() != Outbound) {
         BUG() << "Attempted to send outbound message on non outbound channel";
-        return false;
+        return;
     }
 
     auto it = outgoingTransfers.find(id);
     if (it == outgoingTransfers.end())
     {
         BUG() << "Attemping to send next chunk for unknown file" << id;
-        return false;
+        return;
     }
     auto& otr = it->second;
 
     // make sure our offset and the stream offset agree
     Q_ASSERT(otr.finished() == false);
     Q_ASSERT(otr.offset == otr.stream.tellg());
-    Q_ASSERT(otr.offset == otr.cur_chunk * FileMaxChunkSize);
 
     // read the next chunk to our buffer, and update our offset
     otr.stream.read(this->chunkBuffer, FileMaxChunkSize);
     const auto chunkSize = otr.stream.gcount();
     otr.offset += chunkSize;
 
-    // calculate this chunks hash
-    tego_file_hash chunkHash(
-        reinterpret_cast<uint8_t const*>(std::begin(chunkBuffer)),
-        reinterpret_cast<uint8_t const*>(std::begin(chunkBuffer) + chunkSize));
-
     // build our chunk
     auto chunk = std::make_unique<Data::File::FileChunk>();
-    chunk->set_sha3_512(chunkHash.to_string());
     chunk->set_file_id(id);
-    chunk->set_chunk_id(otr.cur_chunk);
     chunk->set_chunk_size(chunkSize);
     chunk->set_chunk_data(std::begin(chunkBuffer), chunkSize);
 
@@ -613,8 +583,9 @@ bool FileChannel::sendNextChunk(file_id_t id)
     // send the chunk
     Channel::sendMessage(packet);
 
-    // emit for callback
-    emit this->fileTransferProgress(id, tego_attachment_direction_sending, otr.offset, otr.size);
-
-    return true;
+    // schedule sending next chunk
+    if (otr.offset < otr.size)
+    {
+        QTimer::singleShot(0, [=,this]() -> void {this->sendNextChunk(id);});
+    }
 }

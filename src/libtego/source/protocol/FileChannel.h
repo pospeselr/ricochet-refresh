@@ -78,10 +78,11 @@ private:
             const std::string& filePath,
             qint64 fileSize);
 
+        std::chrono::time_point<std::chrono::system_clock> beginTime;
+
         const file_id_t id;
         const qint64 size;
         qint64 offset;
-        chunk_id_t cur_chunk;   // rename to current chunk index or something (or do our math in terms of offsets instead?)
         std::ifstream stream;
 
         inline bool finished() const { return offset == size; }
@@ -99,6 +100,8 @@ private:
         incoming_transfer_record(incoming_transfer_record&&) = default;
 
         ~incoming_transfer_record();
+
+        std::chrono::time_point<std::chrono::system_clock> beginTime;
 
         const file_id_t id;
         const qint64 size;
@@ -131,7 +134,7 @@ private:
     void handleFileChunk(const Data::File::FileChunk &message);
     void handleFileChunkAck(const Data::File::FileChunkAck &message);
     void handleFileTransferCompleteNotification(const Data::File::FileTransferCompleteNotification &message);
-    bool sendNextChunk(file_id_t id);
+    void sendNextChunk(file_id_t id);
 };
 
 }
