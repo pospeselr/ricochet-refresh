@@ -163,7 +163,7 @@ Column {
                         width: parent.width - (acceptButton.visible ? (acceptButton.width + parent.spacing) : 0) - parent.spacing - cancelButton.width
                         spacing: 6
 
-                        Label {
+                        Text {
                             id: filename
 
                             width: parent.width
@@ -172,6 +172,7 @@ Column {
                             text: model.transfer.file_name
                             font.bold: true
                             font.pointSize: styleHelper.pointSize
+                            elide: Text.ElideMiddle
                         }
 
                         ProgressBar {
