@@ -44,15 +44,15 @@ message Packet {
 }
 
 message FileHeader {
-    optional uint32 file_id = 1;
-    optional uint64 size = 2;
-    optional string name = 3;
-    optional bytes sha3_512 = 4;
+    required uint32 file_id = 1;
+    required uint64 size = 2;
+    required string name = 3;
+    required bytes sha3_512 = 4;
 }
 
 message FileHeaderAck {
-    optional uint64 file_id = 1;
-    optional bool accepted = 2 [default = false];
+    required uint64 file_id = 1;
+    required bool accepted = 2 [default = false];
 }
 
 message FileHeaderResponse {
@@ -60,14 +60,9 @@ message FileHeaderResponse {
     required int32 response = 2;
 }
 
-/* When sending files, they should be split into chunks to avoid high latency.
- * Each chunk should be validated as they are recieved so that if a chunk is
- * corrupted in transit, only the bad chunk will need to be resent, rather
- * than discarding the entire file */
 message FileChunk {
-    optional uint32 file_id = 1;
-    optional uint32 chunk_size = 2; /* size of the chunk */
-    optional bytes chunk_data = 3;
+    required uint32 file_id = 1;
+    required bytes chunk_data = 2;
 }
 message FileChunkAck {
     required uint64 file_id = 1;

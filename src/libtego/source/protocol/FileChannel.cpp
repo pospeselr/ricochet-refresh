@@ -176,25 +176,12 @@ void FileChannel::receivePacket(const QByteArray &packet)
 
 void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
 {
+    Q_ASSERT(direction() == Inbound);
+
     auto response = std::make_unique<Data::File::FileHeaderAck>();
     response->set_accepted(false);
 
-    if (direction() != Inbound) {
-        qWarning() << "Rejected inbound message (FileHeader) on an outbound channel";
-    } else if (!message.has_size()) {
-        /* rationale:
-         *  - if there's no size, we know when we've reached the end when cur_chunk == n_chunks
-         *  - if there's no chunk count, we know when we've reached the end when total_bytes >= size
-         *  - if there's neither, size cannot be determined */
-        /* TODO: given ^, are both actually needed? */
-        qWarning() << "Rejected file header with missing size";
-    } else if (!message.has_sha3_512()) {
-        qWarning() << "Rejected file header with missing hash (sha3_512) - cannot validate";
-    } else if (!message.has_file_id()) {
-        qWarning() << "Rejected file header with missing id";
-    } else if (!message.has_name()) {
-        qWarning() << "Rejected file header with missing name";
-    } else if (message.name().find("..") != std::string::npos) {
+    if (message.name().find("..") != std::string::npos) {
         qWarning() << "Rejected file header with name containing '..'";
     } else if (message.name().find("/") != std::string::npos) {
         qWarning() << "Rejected file header with name containing '/'";
@@ -226,12 +213,6 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
 {
     if (direction() != Outbound) {
         qWarning() << "Rejected inbound acknowledgement on an inbound file channel";
-        closeChannel();
-        return;
-    }
-
-    if (!message.has_file_id()) {
-        qDebug() << "File acknowledgement doesn't have a file ID we understand";
         closeChannel();
         return;
     }
@@ -283,15 +264,12 @@ void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse 
 
 void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 {
-
-
     auto it = incomingTransfers.find(message.file_id());
     if (it == incomingTransfers.end()) {
         qWarning() << "rejecting chunk for unknown file";
         return;
     }
-    else if (message.chunk_size() > FileMaxChunkSize ||
-        message.chunk_size() != message.chunk_data().length())
+    else if (message.chunk_data().size() > FileMaxChunkSize)
     {
         qWarning() << "rejecting chunk because size mismatch";
         return;
@@ -299,7 +277,8 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
     else
     {
         auto& itr = it->second;
-        itr.stream.write(message.chunk_data().c_str(), message.chunk_size());
+        const auto& chunk_data = message.chunk_data();
+        itr.stream.write(chunk_data.data(), chunk_data.size());
 
         // emit progress callback
         const auto fileId = message.file_id();
@@ -398,16 +377,22 @@ void FileChannel::handleFileTransferCompleteNotification(const Data::File::FileT
 {
     const auto id = message.file_id();
 
-    Q_ASSERT(direction() == Outbound);
-
     // first look for an outgoing transfer with this id and cancel, erase it
     if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
     {
         const auto& otr = it->second;
-        logTransferStats(otr.size, otr.beginTime);
+        if (message.result() == tego_attachment_result_success)
+        {
+            logTransferStats(otr.size, otr.beginTime);
+        }
 
         outgoingTransfers.erase(it);
         emit fileTransferFinished(id, tego_attachment_direction_sending, static_cast<tego_attachment_result_t>(message.result()));
+    }
+    else if( auto it = incomingTransfers.find(id); it != incomingTransfers.end())
+    {
+        incomingTransfers.erase(it);
+        emit fileTransferFinished(id, tego_attachment_direction_receiving, static_cast<tego_attachment_result_t>(message.result()));
     }
     else
     {
@@ -562,7 +547,6 @@ void FileChannel::sendNextChunk(file_id_t id)
     // build our chunk
     auto chunk = std::make_unique<Data::File::FileChunk>();
     chunk->set_file_id(id);
-    chunk->set_chunk_size(chunkSize);
     chunk->set_chunk_data(std::begin(chunkBuffer), chunkSize);
 
     Data::File::Packet packet;
