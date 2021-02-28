@@ -522,42 +522,36 @@ bool FileChannel::cancelTransfer(tego_attachment_id_t fileId)
 
 void FileChannel::sendNextChunk(file_id_t id)
 {
-    if (direction() != Outbound) {
-        BUG() << "Attempted to send outbound message on non outbound channel";
-        return;
-    }
+    Q_ASSERT(direction() == Outbound);
 
-    auto it = outgoingTransfers.find(id);
-    if (it == outgoingTransfers.end())
+    if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
     {
-        BUG() << "Attemping to send next chunk for unknown file" << id;
-        return;
-    }
-    auto& otr = it->second;
+        auto& otr = it->second;
 
-    // make sure our offset and the stream offset agree
-    Q_ASSERT(otr.finished() == false);
-    Q_ASSERT(otr.offset == otr.stream.tellg());
+        // make sure our offset and the stream offset agree
+        Q_ASSERT(otr.finished() == false);
+        Q_ASSERT(otr.offset == otr.stream.tellg());
 
-    // read the next chunk to our buffer, and update our offset
-    otr.stream.read(this->chunkBuffer, FileMaxChunkSize);
-    const auto chunkSize = otr.stream.gcount();
-    otr.offset += chunkSize;
+        // read the next chunk to our buffer, and update our offset
+        otr.stream.read(this->chunkBuffer, FileMaxChunkSize);
+        const auto chunkSize = otr.stream.gcount();
+        otr.offset += chunkSize;
 
-    // build our chunk
-    auto chunk = std::make_unique<Data::File::FileChunk>();
-    chunk->set_file_id(id);
-    chunk->set_chunk_data(std::begin(chunkBuffer), chunkSize);
+        // build our chunk
+        auto chunk = std::make_unique<Data::File::FileChunk>();
+        chunk->set_file_id(id);
+        chunk->set_chunk_data(std::begin(chunkBuffer), chunkSize);
 
-    Data::File::Packet packet;
-    packet.set_allocated_file_chunk(chunk.release());
+        Data::File::Packet packet;
+        packet.set_allocated_file_chunk(chunk.release());
 
-    // send the chunk
-    Channel::sendMessage(packet);
+        // send the chunk
+        Channel::sendMessage(packet);
 
-    // schedule sending next chunk
-    if (otr.offset < otr.size)
-    {
-        QTimer::singleShot(0, [=,this]() -> void {this->sendNextChunk(id);});
+        // schedule sending next chunk
+        if (otr.offset < otr.size)
+        {
+            QTimer::singleShot(FileChunkDelayMS, [=,this]() -> void {this->sendNextChunk(id);});
+        }
     }
 }
