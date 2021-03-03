@@ -376,16 +376,23 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
 }
 
 // verify that our tego_attachment_result_t enum matches the FileTransferResult enum
-namespace
+typedef std::underlying_type_t<Protocol::Data::File::FileTransferResult> file_transfer_result_underlying_t;
+
+static_assert(std::is_same_v<std::underlying_type_t<Protocol::Data::File::FileTransferResult>, std::underlying_type_t<tego_attachment_result_t>>);
+
+constexpr bool operator==(Protocol::Data::File::FileTransferResult left, tego_attachment_result_t right)
 {
-    typedef std::underlying_type_t<Protocol::Data::File::FileTransferResult> underlying_t;
-
-    static_assert(std::is_same_v<std::underlying_type_t<Protocol::Data::File::FileTransferResult>, std::underlying_type_t<tego_attachment_result_t>>);
-    static_assert(static_cast<underlying_t>(Protocol::Data::File::Success) == static_cast<underlying_t>(tego_attachment_result_success));
-    static_assert(static_cast<underlying_t>(Protocol::Data::File::Cancelled) == static_cast<underlying_t>(tego_attachment_result_cancelled));
-    static_assert(static_cast<underlying_t>(Protocol::Data::File::Failure) == static_cast<underlying_t>(tego_attachment_result_failure));
-
+    return static_cast<file_transfer_result_underlying_t>(left) == static_cast<file_transfer_result_underlying_t>(right);
 }
+
+constexpr bool operator==(tego_attachment_result_t left, Protocol::Data::File::FileTransferResult right)
+{
+    return right == left;
+}
+
+static_assert(Protocol::Data::File::Success == tego_attachment_result_success);
+static_assert(Protocol::Data::File::Cancelled == tego_attachment_result_cancelled);
+static_assert(Protocol::Data::File::Failure == tego_attachment_result_failure);
 
 void FileChannel::handleFileTransferCompleteNotification(const Data::File::FileTransferCompleteNotification &message)
 {
