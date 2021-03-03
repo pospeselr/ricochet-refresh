@@ -64,106 +64,24 @@ void ConversationModel::setContact(ContactUser *contact)
     m_contact = contact;
     if (m_contact) {
         auto connectChannel = [this](Protocol::Channel *channel) {
+            if (channel->direction() == Protocol::Channel::Outbound)
+            {
+                connect(channel, &Protocol::Channel::invalidated, this, &ConversationModel::outboundChannelClosed);
+                sendQueuedMessages();
+            }
+
             if (Protocol::ChatChannel *chat = qobject_cast<Protocol::ChatChannel*>(channel))
             {
                 connect(chat, &Protocol::ChatChannel::messageReceived, this, &ConversationModel::messageReceived);
                 connect(chat, &Protocol::ChatChannel::messageAcknowledged, this, &ConversationModel::messageAcknowledged);
-
-                if (chat->direction() == Protocol::Channel::Outbound)
-                {
-                    connect(chat, &Protocol::Channel::invalidated, this, &ConversationModel::outboundChannelClosed);
-                    sendQueuedMessages();
-                }
             }
-            if (auto fc = qobject_cast<Protocol::FileChannel*>(channel); fc != nullptr)
+            else if (auto fc = qobject_cast<Protocol::FileChannel*>(channel); fc != nullptr)
             {
-                if (fc->direction() == Protocol::Channel::Outbound)
-                {
-                    connect(fc, &Protocol::Channel::invalidated, this, &ConversationModel::outboundChannelClosed);
-                    sendQueuedMessages();
-                }
-
-                connect(
-                    fc,
-                    &Protocol::FileChannel::fileTransferRequestReceived,
-                    [this](tego_attachment_id_t id, const QString& filename, size_t fileSize, tego_file_hash_t hash) -> void
-                    {
-                        // user id
-                        auto userId = this->contact()->toTegoUserId();
-
-                        // filename
-                        auto utf8Filename = filename.toUtf8();
-                        const auto rawFilenameLength = utf8Filename.size();
-                        const auto rawFilenameSize = rawFilenameLength + 1; // for null terminator
-                        auto rawFilename = std::make_unique<char[]>(rawFilenameSize);
-                        std::copy(utf8Filename.begin(), utf8Filename.end(), rawFilename.get());
-                        rawFilename[rawFilenameLength] = 0;
-
-                        // filehash
-                        auto heapHash = std::make_unique<tego_file_hash_t>(hash);
-
-                        g_globals.context->callback_registry_.emit_attachment_request_received(
-                            userId.release(),
-                            id,
-                            rawFilename.release(),
-                            rawFilenameLength,
-                            fileSize,
-                            heapHash.release());
-                    });
-
-                connect(
-                    fc,
-                    &Protocol::FileChannel::fileTransferAcknowledged,
-                    [this](tego_attachment_id_t id, bool ack)
-                    {
-                        auto userId = this->contact()->toTegoUserId();
-                        g_globals.context->callback_registry_.emit_attachment_request_acknowledged(
-                            userId.release(),
-                            id,
-                            ack ? TEGO_TRUE : TEGO_FALSE);
-                    });
-
-                connect(
-                    fc,
-                    &Protocol::FileChannel::fileTransferRequestResponded,
-                    [this](tego_attachment_id_t id, tego_attachment_response_t response)
-                    {
-                        auto userId = this->contact()->toTegoUserId();
-                        g_globals.context->callback_registry_.emit_attachment_request_response_received(
-                            userId.release(),
-                            id,
-                            response);
-                    });
-
-                connect(
-                    fc,
-                    &Protocol::FileChannel::fileTransferProgress,
-                    [this](tego_attachment_id_t id, tego_attachment_direction_t direction, uint64_t bytesTransmitted, uint64_t bytesTotal) -> void
-                    {
-                        auto userId = this->contact()->toTegoUserId();
-                        g_globals.context->callback_registry_.emit_attachment_progress(
-                            userId.release(),
-                            id,
-                            direction,
-                            bytesTransmitted,
-                            bytesTotal);
-                    });
-
-
-                connect(
-                    fc,
-                    &Protocol::FileChannel::fileTransferFinished,
-                    [this](tego_attachment_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t result) -> void
-                    {
-                        auto userId = this->contact()->toTegoUserId();
-                        g_globals.context->callback_registry_.emit_attachment_complete(
-                            userId.release(),
-                            id,
-                            direction,
-                            result);
-                    });
-
-                // todo, retry sending messages after the FileChannel reconnects
+                connect(fc, &Protocol::FileChannel::fileTransferRequestReceived, this, &ConversationModel::onFileTransferRequestReceived);
+                connect(fc, &Protocol::FileChannel::fileTransferAcknowledged, this, &ConversationModel::onFileTransferAcknowledged);
+                connect(fc, &Protocol::FileChannel::fileTransferRequestResponded, this, &ConversationModel::onFileTransferRequestResponded);
+                connect(fc, &Protocol::FileChannel::fileTransferProgress, this, &ConversationModel::onFileTransferProgress);
+                connect(fc, &Protocol::FileChannel::fileTransferFinished, this, &ConversationModel::onFileTransferFinished);
             }
         };
 
@@ -522,6 +440,70 @@ void ConversationModel::onContactStatusChanged()
 {
     // Update in case section has changed
     emit dataChanged(index(0, 0), index(rowCount()-1, 0), QVector<int>() << SectionRole);
+}
+
+void ConversationModel::onFileTransferRequestReceived(tego_attachment_id_t id, const QString& filename, size_t fileSize, tego_file_hash_t hash)
+{
+    // user id
+    auto userId = this->contact()->toTegoUserId();
+
+    // filename
+    auto utf8Filename = filename.toUtf8();
+    const auto rawFilenameLength = utf8Filename.size();
+    const auto rawFilenameSize = rawFilenameLength + 1; // for null terminator
+    auto rawFilename = std::make_unique<char[]>(rawFilenameSize);
+    std::copy(utf8Filename.begin(), utf8Filename.end(), rawFilename.get());
+    rawFilename[rawFilenameLength] = 0;
+
+    // filehash
+    auto heapHash = std::make_unique<tego_file_hash_t>(hash);
+
+    g_globals.context->callback_registry_.emit_attachment_request_received(
+        userId.release(),
+        id,
+        rawFilename.release(),
+        rawFilenameLength,
+        fileSize,
+        heapHash.release());
+}
+
+void ConversationModel::onFileTransferAcknowledged(tego_attachment_id_t id, bool ack)
+{
+    auto userId = this->contact()->toTegoUserId();
+    g_globals.context->callback_registry_.emit_attachment_request_acknowledged(
+        userId.release(),
+        id,
+        ack ? TEGO_TRUE : TEGO_FALSE);
+}
+
+void ConversationModel::onFileTransferRequestResponded(tego_attachment_id_t id, tego_attachment_response_t response)
+{
+    auto userId = this->contact()->toTegoUserId();
+    g_globals.context->callback_registry_.emit_attachment_request_response_received(
+        userId.release(),
+        id,
+        response);
+}
+
+void ConversationModel::onFileTransferProgress(tego_attachment_id_t id, tego_attachment_direction_t direction, uint64_t bytesTransmitted, uint64_t bytesTotal)
+{
+    auto userId = this->contact()->toTegoUserId();
+    g_globals.context->callback_registry_.emit_attachment_progress(
+        userId.release(),
+        id,
+        direction,
+        bytesTransmitted,
+        bytesTotal);
+}
+
+void ConversationModel::onFileTransferFinished(tego_attachment_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t result)
+{
+    auto userId = this->contact()->toTegoUserId();
+    g_globals.context->callback_registry_.emit_attachment_complete(
+        userId.release(),
+        id,
+        direction,
+        result);
 }
 
 QHash<int,QByteArray> ConversationModel::roleNames() const

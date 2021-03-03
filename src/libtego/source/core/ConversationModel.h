@@ -97,6 +97,12 @@ private slots:
     void sendQueuedMessages();
     void onContactStatusChanged();
 
+    void onFileTransferRequestReceived(tego_attachment_id_t id, const QString& filename, size_t fileSize, tego_file_hash_t hash);
+    void onFileTransferAcknowledged(tego_attachment_id_t id, bool ack);
+    void onFileTransferRequestResponded(tego_attachment_id_t id, tego_attachment_response_t response);
+    void onFileTransferProgress(tego_attachment_id_t id, tego_attachment_direction_t direction, uint64_t bytesTransmitted, uint64_t bytesTotal);
+    void onFileTransferFinished(tego_attachment_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t result);
+
 private:
     struct MessageData {
         enum Type {
