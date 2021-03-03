@@ -57,11 +57,12 @@ public:
     void rejectFile(tego_attachment_id_t fileId);
     bool cancelTransfer(tego_attachment_id_t fileId);
 
+    // signals bubble up to the ConversationModel object that owns this FileChannel
 signals:
-    void fileTransferRequestReceived(file_id_t id, QString fileName, size_t fileSize, tego_file_hash_t);
+    void fileTransferRequestReceived(file_id_t id, QString fileName, tego_file_size_t fileSize, tego_file_hash_t);
     void fileTransferAcknowledged(file_id_t id, bool ack);
     void fileTransferRequestResponded(file_id_t id, tego_attachment_response_t response);
-    void fileTransferProgress(file_id_t id, tego_attachment_direction_t direction, uint64_t bytesTransmitted, uint64_t bytesTotal);
+    void fileTransferProgress(file_id_t id, tego_attachment_direction_t direction, tego_file_size_t bytesTransmitted, tego_file_size_t bytesTotal);
     void fileTransferFinished(file_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t);
 
 protected:
@@ -70,18 +71,27 @@ protected:
     virtual void receivePacket(const QByteArray &packet);
 private:
 
+    // we need runtime checks to ensure that sizes stored as tego_file_size_t are representable as
+    // std::streamoff too where appropriate
+    // verify that std::streamoff is representable as a tego_file_size_t
+    static_assert(std::numeric_limits<std::streamoff>::max() <= std::numeric_limits<tego_file_size_t>::max());
+    // verify the QFileInfo::size() method returns a qint64
+    static_assert(std::is_same_v<decltype(QFileInfo().size()), qint64>);
+    // verify that std::streamoff is representable as qint64 (type used by Qt File APIs for sizes)
+    static_assert(std::numeric_limits<std::streamoff>::max() <= std::numeric_limits<qint64>::max());
+
     struct outgoing_transfer_record
     {
         outgoing_transfer_record(
             file_id_t id,
             const std::string& filePath,
-            qint64 fileSize);
+            tego_file_size_t fileSize);
 
         std::chrono::time_point<std::chrono::system_clock> beginTime;
 
         const file_id_t id;
-        const qint64 size;
-        qint64 offset;
+        const tego_file_size_t size;
+        tego_file_size_t offset;
         std::ifstream stream;
 
         inline bool finished() const { return offset == size; }
@@ -91,7 +101,7 @@ private:
 	{
         incoming_transfer_record(
             file_id_t id,
-            qint64 fileSize,
+            tego_file_size_t fileSize,
             const std::string& fileHash);
         // explicit destructor defined, so we need to explicitly define a move constructor
 		// for usage with std::map
@@ -102,7 +112,7 @@ private:
         std::chrono::time_point<std::chrono::system_clock> beginTime;
 
         const file_id_t id;
-        const qint64 size;
+        const tego_file_size_t size;
         std::string dest; // destination to save to
         const std::string sha3_512;
 
@@ -113,7 +123,7 @@ private:
         void open_stream(const std::string& dest);
     };
     // 63 kb, max packet size is UINT16_MAX (ak 65535, 64k - 1) so leave space for other data
-    constexpr static qint64 FileMaxChunkSize = 63*1024; // bytes
+    constexpr static tego_file_size_t FileMaxChunkSize = 63*1024; // bytes
     // intermediate buffer we load chunks from disk into
     // each access to this buffer happens on the same thread, and only within the scope of a function
     // so no need to worry about synchronization or sharing between file transfers

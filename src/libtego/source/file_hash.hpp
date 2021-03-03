@@ -19,7 +19,8 @@ struct tego_file_hash
     constexpr static size_t SHA3_512_DIGEST_SIZE = 512 / 8;
     constexpr static size_t DIGEST_SIZE = SHA3_512_DIGEST_SIZE;
     // two chars per byte plus null terminator
-    constexpr static size_t STRING_SIZE = DIGEST_SIZE * 2 + 1;
+    constexpr static size_t STRING_LENGTH = DIGEST_SIZE * 2;
+    constexpr static size_t STRING_SIZE = STRING_LENGTH + 1;
     std::array<uint8_t, DIGEST_SIZE> data;
     mutable std::string hex;
 };

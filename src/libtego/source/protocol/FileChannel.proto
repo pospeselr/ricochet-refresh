@@ -45,9 +45,9 @@ message Packet {
 
 message FileHeader {
     required uint32 file_id = 1;
-    required int64 size = 2;
+    required uint64 file_size = 2;
     required string name = 3;
-    required bytes sha3_512 = 4;
+    required string sha3_512 = 4;
 }
 
 message FileHeaderAck {
@@ -66,7 +66,7 @@ message FileChunk {
 }
 message FileChunkAck {
     required uint64 file_id = 1;
-    required int64 bytes_received = 2;
+    required uint64 bytes_received = 2;
 }
 
 enum FileTransferResult {
