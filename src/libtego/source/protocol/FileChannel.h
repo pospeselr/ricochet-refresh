@@ -114,11 +114,6 @@ private:
     };
     // 63 kb, max packet size is UINT16_MAX (ak 65535, 64k - 1) so leave space for other data
     constexpr static qint64 FileMaxChunkSize = 63*1024; // bytes
-    // lets be optimistic and cap our transfer speed at 1 megabyte / second
-    constexpr static double OptimisticTransferSpeed = 1024*1024;    // bytes / second
-    constexpr static double FileChunkDelay = FileMaxChunkSize / OptimisticTransferSpeed; // seconds
-    // delay before we schedule another chunk to be sent
-    constexpr static int FileChunkDelayMS = static_cast<int>(FileChunkDelay * 1000.0); // milliseconds
     // intermediate buffer we load chunks from disk into
     // each access to this buffer happens on the same thread, and only within the scope of a function
     // so no need to worry about synchronization or sharing between file transfers

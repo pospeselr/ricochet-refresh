@@ -358,7 +358,21 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     }
 
     const auto& otr = it->second;
+
+    // verify the ack corresponds to how many bytes we've sent
+    if (message.bytes_received() != otr.offset)
+    {
+        qWarning() << "mismatch between bytes we have sent and the bytes the receiver claims to have received";
+        closeChannel();
+        return;
+    }
+
     emit this->fileTransferProgress(otr.id, tego_attachment_direction_receiving, message.bytes_received(), otr.size);
+
+    if(otr.offset < otr.size)
+    {
+        sendNextChunk(id);
+    }
 }
 
 // verify that our tego_attachment_result_t enum matches the FileTransferResult enum
@@ -547,11 +561,5 @@ void FileChannel::sendNextChunk(file_id_t id)
 
         // send the chunk
         Channel::sendMessage(packet);
-
-        // schedule sending next chunk
-        if (otr.offset < otr.size)
-        {
-            QTimer::singleShot(FileChunkDelayMS, [=,this]() -> void {this->sendNextChunk(id);});
-        }
     }
 }
