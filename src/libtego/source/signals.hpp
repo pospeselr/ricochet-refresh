@@ -58,7 +58,6 @@ namespace tego
         #define TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(EVENT, ...)\
         private:\
             tego_##EVENT##_callback_t EVENT##_ = nullptr;\
-            static void cleanup_##EVENT##_args(__VA_ARGS__);\
         public:\
             void register_##EVENT(tego_##EVENT##_callback_t cb)\
             {\
@@ -72,11 +71,12 @@ namespace tego
                         [=, context=context_, callback=EVENT##_]() mutable -> void\
                         {\
                             callback(context, std::forward<ARGS>(args)...);\
-                            cleanup_##EVENT##_args(std::forward<ARGS>(args)...);\
+                            cleanup_args(std::forward<ARGS>(args)...);\
                         }\
                     );\
                 }\
-            }
+            }\
+        private:
 
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(tor_error_occurred, tego_tor_error_origin_t, tego_error_t*);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(update_tor_daemon_config_succeeded, tego_bool_t);
@@ -103,6 +103,35 @@ namespace tego
     private:
         void push_back(type_erased_callback&&);
         tego_context* context_ = nullptr;
+
+        // cleanup message buffer
+        static void cleanup_arg(char* msg)
+        {
+            delete[] msg;
+        }
+
+        // cleanup for other pointer types
+        template<typename T>
+        static void cleanup_arg(T* pVal)
+        {
+            delete pVal;
+        }
+
+        // no-op for unspecialized types
+        template<typename T>
+        static void cleanup_arg(T&&)
+        { }
+
+        // no-op for termation case
+        static void cleanup_args()
+        { }
+
+        template<typename FIRST, typename...ARGS>
+        static void cleanup_args(FIRST&& first, ARGS&&... args)
+        {
+            cleanup_arg(std::forward<FIRST>(first));
+            return cleanup_args(std::forward<ARGS>(args)...);
+        }
     };
 
     /*
