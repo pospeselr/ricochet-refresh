@@ -77,6 +77,12 @@ void ConversationModel::setContact(ContactUser *contact)
             }
             if (auto fc = qobject_cast<Protocol::FileChannel*>(channel); fc != nullptr)
             {
+                if (fc->direction() == Protocol::Channel::Outbound)
+                {
+                    connect(fc, &Protocol::Channel::invalidated, this, &ConversationModel::outboundChannelClosed);
+                    sendQueuedMessages();
+                }
+
                 connect(
                     fc,
                     &Protocol::FileChannel::fileTransferRequestReceived,
