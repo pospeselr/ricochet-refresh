@@ -225,12 +225,13 @@ void ConnectionPrivate::closeImmediately()
 void ConnectionPrivate::socketDisconnected()
 {
     qDebug() << "Connection" << this << "disconnected";
-    closeAllChannels();
-
+    // emit close signal first so FileChannel can bubble up errors
     if (!wasClosed) {
         wasClosed = true;
         emit q->closed();
     }
+
+    closeAllChannels();
 }
 
 void ConnectionPrivate::socketReadable()

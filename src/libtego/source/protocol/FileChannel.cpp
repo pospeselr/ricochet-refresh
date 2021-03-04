@@ -116,7 +116,9 @@ void FileChannel::incoming_transfer_record::open_stream(const std::string& dest)
 
 FileChannel::FileChannel(Direction direction, Connection *connection)
     : Channel(QStringLiteral("im.ricochet.file-transfer"), direction, connection)
-{ }
+{
+    connect(this->d_ptr->connection, &Connection::closed, this, &FileChannel::onConnectionClosed);
+}
 
 bool FileChannel::allowInboundChannelRequest(
     const Data::Control::OpenChannel*,
@@ -156,7 +158,7 @@ void FileChannel::receivePacket(const QByteArray &packet)
 {
     Data::File::Packet message;
     if (!message.ParseFromArray(packet.constData(), packet.size())) {
-        emitFatalError("failed to parse message on file channel");
+        emitFatalError("Failed to parse message on file channel", tego_attachment_result_failure, true);
         return;
     }
 
@@ -173,15 +175,22 @@ void FileChannel::receivePacket(const QByteArray &packet)
     } else if (message.has_file_transfer_complete_notification()) {
         handleFileTransferCompleteNotification(message.file_transfer_complete_notification());
     } else {
-        emitFatalError("Unrecognized file packet on FileChannel");
+        emitFatalError("Unrecognized file packet on FileChannel", tego_attachment_result_failure, true);
     }
+}
+
+void FileChannel::onConnectionClosed()
+{
+    // we do not need to close the channel here because our owning Connection
+    // will already do so, from ConnectionPrivate::socketDisconnected
+    this->emitFatalError("Connection Closed", tego_attachment_result_network_error, false);
 }
 
 //
 // Error Handling
 //
 
-void FileChannel::emitFatalError(std::string&& message)
+void FileChannel::emitFatalError(std::string&& message, tego_attachment_result_t error, bool shouldCloseChannel)
 {
     qWarning() << message.data();
 
@@ -191,23 +200,29 @@ void FileChannel::emitFatalError(std::string&& message)
     case Inbound:
         for(const auto& [id, itr] : incomingTransfers)
         {
-            emit this->fileTransferFinished(id, tego_attachment_direction_receiving, tego_attachment_result_failure);
+            emit this->fileTransferFinished(id, tego_attachment_direction_receiving, error);
         }
+        incomingTransfers.clear();
         break;
     case Outbound:
         for(const auto& [id, itr] : outgoingTransfers)
         {
-            emit this->fileTransferFinished(id, tego_attachment_direction_sending, tego_attachment_result_failure);
+            emit this->fileTransferFinished(id, tego_attachment_direction_sending, error);
         }
+        outgoingTransfers.clear();
         break;
     default:
         break;
     }
-    qWarning() << "Closing Channel";
-    this->closeChannel();
+
+    if (shouldCloseChannel)
+    {
+        qWarning() << "Closing Channel";
+        this->closeChannel();
+    }
 }
 
-void FileChannel::emitNonFatalError(std::string&& message, tego_attachment_id_t id, tego_attachment_result_t result)
+void FileChannel::emitNonFatalError(std::string&& message, tego_attachment_id_t id, tego_attachment_result_t error)
 {
     // log error message to console
     qWarning() << message.data();
@@ -218,21 +233,19 @@ void FileChannel::emitNonFatalError(std::string&& message, tego_attachment_id_t 
     case Inbound:
         if (auto it = incomingTransfers.find(id); it != incomingTransfers.end())
         {
-            emit this->fileTransferFinished(id, tego_attachment_direction_receiving, result);
+            emit this->fileTransferFinished(id, tego_attachment_direction_receiving, error);
             incomingTransfers.erase(it);
         }
         break;
     case Outbound:
         if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
         {
-            logger::trace();
-            logger::println("Emit fileTransferFinished");
-            emit this->fileTransferFinished(id, tego_attachment_direction_sending, result);
+            emit this->fileTransferFinished(id, tego_attachment_direction_sending, error);
             outgoingTransfers.erase(it);
         }
         break;
     default:
-        emitFatalError(fmt::format("Unknown FileChannel::direction()", direction));
+        emitFatalError(fmt::format("Unknown FileChannel::direction()", direction), tego_attachment_result_failure, true);
         break;
     }
 }
@@ -329,7 +342,7 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
 void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse &message)
 {
     if (direction() != Outbound) {
-        emitFatalError("Rejected FileHeaderResponse message on inbound file channel");
+        emitFatalError("Rejected FileHeaderResponse message on inbound file channel", tego_attachment_result_failure, true);
         return;
     }
 
@@ -357,7 +370,7 @@ void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse 
         if (response != tego_attachment_response_reject)
         {
             // this can never happen kill connection if we receive invalid value here
-            emitFatalError("Received invalid FileHeaderResponse");
+            emitFatalError("Received invalid FileHeaderResponse", tego_attachment_result_failure, true);
             return;
         }
         // receiver rejected our transfer request, so erase it from our records
@@ -369,7 +382,7 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 {
     if (direction() != Inbound)
     {
-        emitFatalError("Rejected FileChunk message on outbound file channel");
+        emitFatalError("Rejected FileChunk message on outbound file channel", tego_attachment_result_failure, true);
         return;
     }
 
@@ -384,7 +397,7 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
     else if (message.chunk_data().size() > FileMaxChunkSize)
     {
         // something is very wrong in this case
-        emitFatalError("Rejected FileChunk because of invalid chunk_data() size");
+        emitFatalError("Rejected FileChunk because of invalid chunk_data() size", tego_attachment_result_failure, true);
         return;
     }
     else
@@ -458,7 +471,7 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
                 }
                 else
                 {
-                    emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_failure);
+                    emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_filesystem_error);
                 }
             }
             incomingTransfers.erase(it);
@@ -479,7 +492,7 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
 {
     if (direction() != Outbound)
     {
-        emitFatalError("Rejected FileChunkAck message on incoming file channel");
+        emitFatalError("Rejected FileChunkAck message on incoming file channel", tego_attachment_result_failure, true);
         return;
     }
 
@@ -501,7 +514,7 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     {
         // acks currently always come between sending chunks, so our bytes sent and their bytes received should
         // not diverge
-        emitFatalError("mismatch between bytes we have sent and the bytes the receiver claims to have received");
+        emitFatalError("mismatch between bytes we have sent and the bytes the receiver claims to have received", tego_attachment_result_failure, true);
         return;
     }
 
@@ -574,6 +587,7 @@ bool FileChannel::sendFileWithId(QString file_uri,
                                  tego_attachment_id_t file_id)
 {
     Q_ASSERT(direction() == Outbound);
+    Q_ASSERT(!outgoingTransfers.contains(file_id));
 
     // verify the args
     Q_ASSERT(!file_uri.isEmpty());

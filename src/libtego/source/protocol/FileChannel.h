@@ -53,7 +53,6 @@ public:
     void acceptFile(tego_attachment_id_t fileId, const std::string& dest);
     void rejectFile(tego_attachment_id_t fileId);
     bool cancelTransfer(tego_attachment_id_t fileId);
-
     // signals bubble up to the ConversationModel object that owns this FileChannel
 signals:
     void fileTransferRequestReceived(tego_attachment_id_t id, QString fileName, tego_file_size_t fileSize, tego_file_hash_t);
@@ -67,6 +66,8 @@ protected:
     virtual bool allowOutboundChannelRequest(Data::Control::OpenChannel *request);
     virtual void receivePacket(const QByteArray &packet);
 private:
+    // when our socket goes away
+    void onConnectionClosed();
 
     // we need runtime checks to ensure that sizes stored as tego_file_size_t are representable as
     // std::streamoff too where appropriate
@@ -133,9 +134,9 @@ private:
 
     // called when something unrecoverable occurs, or contact is sending us bad packets, or we get in
     // some other allegedly impossible state; kills all our transfers and disconnect the channel
-    void emitFatalError(std::string&& msg);
+    void emitFatalError(std::string&& msg, tego_attachment_result_t error, bool shouldCloseChannel);
     // called when some error occurs that does not affect other transfers
-    void emitNonFatalError(std::string&& msg, tego_attachment_id_t id, tego_attachment_result_t result);
+    void emitNonFatalError(std::string&& msg, tego_attachment_id_t id, tego_attachment_result_t error);
 
     void handleFileHeader(const Data::File::FileHeader &message);
     void handleFileHeaderAck(const Data::File::FileHeaderAck &message);
@@ -143,6 +144,7 @@ private:
     void handleFileChunk(const Data::File::FileChunk &message);
     void handleFileChunkAck(const Data::File::FileChunkAck &message);
     void handleFileTransferCompleteNotification(const Data::File::FileTransferCompleteNotification &message);
+
     void sendNextChunk(tego_attachment_id_t id);
 };
 

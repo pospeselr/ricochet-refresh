@@ -381,16 +381,8 @@ void ConversationModel::messageAcknowledged(MessageId id, bool accepted)
     data.status = accepted ? Delivered : Error;
     emit dataChanged(index(row, 0), index(row, 0));
 
-    {
-        // convert our hostname to just the service id raw string
-        auto serviceIdString = m_contact->hostname().left(TEGO_V3_ONION_SERVICE_ID_LENGTH).toUtf8();
-        // ensure valid service id
-        auto serviceId = std::make_unique<tego_v3_onion_service_id>(serviceIdString.data(), serviceIdString.size());
-        // create user id object from service id
-        auto userId = std::make_unique<tego_user_id>(*serviceId.get());
-
-        g_globals.context->callback_registry_.emit_message_acknowledged(userId.release(), static_cast<tego_message_id_t>(id), (accepted ? TEGO_TRUE : TEGO_FALSE));
-    }
+    auto userId = this->contact()->toTegoUserId();
+    g_globals.context->callback_registry_.emit_message_acknowledged(userId.release(), static_cast<tego_message_id_t>(id), (accepted ? TEGO_TRUE : TEGO_FALSE));
 }
 
 void ConversationModel::outboundChannelClosed()
@@ -467,13 +459,21 @@ void ConversationModel::onFileTransferRequestReceived(tego_attachment_id_t id, c
         heapHash.release());
 }
 
-void ConversationModel::onFileTransferAcknowledged(tego_attachment_id_t id, bool ack)
+void ConversationModel::onFileTransferAcknowledged(tego_attachment_id_t id, bool accepted)
 {
+    int row = indexOfIdentifier(id, true);
+    if (row < 0)
+        return;
+
+    MessageData &data = messages[row];
+    data.status = accepted ? Delivered : Error;
+    emit dataChanged(index(row, 0), index(row, 0));
+
     auto userId = this->contact()->toTegoUserId();
     g_globals.context->callback_registry_.emit_attachment_request_acknowledged(
         userId.release(),
         id,
-        ack ? TEGO_TRUE : TEGO_FALSE);
+        accepted ? TEGO_TRUE : TEGO_FALSE);
 }
 
 void ConversationModel::onFileTransferRequestResponded(tego_attachment_id_t id, tego_attachment_response_t response)
