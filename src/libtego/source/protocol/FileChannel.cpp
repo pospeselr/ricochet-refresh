@@ -156,9 +156,7 @@ void FileChannel::receivePacket(const QByteArray &packet)
 {
     Data::File::Packet message;
     if (!message.ParseFromArray(packet.constData(), packet.size())) {
-        qWarning() << "failed to parse message on file channel";
-        // todo: bubble out error here?
-        closeChannel();
+        emitFatalError("failed to parse message on file channel");
         return;
     }
 
@@ -175,8 +173,67 @@ void FileChannel::receivePacket(const QByteArray &packet)
     } else if (message.has_file_transfer_complete_notification()) {
         handleFileTransferCompleteNotification(message.file_transfer_complete_notification());
     } else {
-        qWarning() << "Unrecognized file packet on " << type();
-        closeChannel();
+        emitFatalError("Unrecognized file packet on FileChannel");
+    }
+}
+
+//
+// Error Handling
+//
+
+void FileChannel::emitFatalError(std::string&& message)
+{
+    qWarning() << message.data();
+
+    // tear down all ongoing transfers
+    switch(direction())
+    {
+    case Inbound:
+        for(const auto& [id, itr] : incomingTransfers)
+        {
+            emit this->fileTransferFinished(id, tego_attachment_direction_receiving, tego_attachment_result_failure);
+        }
+        break;
+    case Outbound:
+        for(const auto& [id, itr] : outgoingTransfers)
+        {
+            emit this->fileTransferFinished(id, tego_attachment_direction_sending, tego_attachment_result_failure);
+        }
+        break;
+    default:
+        break;
+    }
+    qWarning() << "Closing Channel";
+    this->closeChannel();
+}
+
+void FileChannel::emitNonFatalError(std::string&& message, tego_attachment_id_t id, tego_attachment_result_t result)
+{
+    // log error message to console
+    qWarning() << message.data();
+
+    const auto direction = this->direction();
+    switch(direction)
+    {
+    case Inbound:
+        if (auto it = incomingTransfers.find(id); it != incomingTransfers.end())
+        {
+            emit this->fileTransferFinished(id, tego_attachment_direction_receiving, result);
+            incomingTransfers.erase(it);
+        }
+        break;
+    case Outbound:
+        if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
+        {
+            logger::trace();
+            logger::println("Emit fileTransferFinished");
+            emit this->fileTransferFinished(id, tego_attachment_direction_sending, result);
+            outgoingTransfers.erase(it);
+        }
+        break;
+    default:
+        emitFatalError(fmt::format("Unknown FileChannel::direction()", direction));
+        break;
     }
 }
 
@@ -205,7 +262,6 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
     auto response = std::make_unique<Data::File::FileHeaderAck>();
     response->set_accepted(false);
 
-
     if (message.name().find("..") != std::string::npos)
     {
         qWarning() << "Rejected file header with name containing '..'";
@@ -219,14 +275,17 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
     {
         qWarning() << "Rejected file header with hash incorrect length";
     }
-    // ensure that we can write a file this large
-    else if(std::numeric_limits<qint64>::max() > std::numeric_limits<std::streamoff>::max() &&
-            message.file_size() > std::numeric_limits<std::streamoff>::max())
-    {
-        qWarning() << "Rejected file header with too large a file size";
-    }
     else
     {
+        // ensure that we can write a file this large
+        if constexpr(std::numeric_limits<qint64>::max() > std::numeric_limits<std::streamoff>::max())
+        {
+            if(message.file_size() > std::numeric_limits<std::streamoff>::max())
+            {
+                qWarning() << "Rejected file header with too large a file size";
+            }
+        }
+
         tego_file_hash fileHash;
         const auto& digest = message.file_hash();
         // copy our digest in directly
@@ -270,7 +329,7 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
 void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse &message)
 {
     if (direction() != Outbound) {
-        qWarning() << "Rejected inbound message on inbound file channel";
+        emitFatalError("Rejected FileHeaderResponse message on inbound file channel");
         return;
     }
 
@@ -279,11 +338,15 @@ void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse 
     auto it = outgoingTransfers.find(id);
     if (it == outgoingTransfers.end())
     {
+        // this can happen if local user cancels a transfer request before their receiver has responded,
+        // so this is not a fatal error
         qWarning() << "recieved response for a file header we never sent";
         return;
     }
 
     const auto response = message.response();
+    emit this->fileTransferRequestResponded(message.file_id(), static_cast<tego_attachment_response_t>(response));
+
     if (response == tego_attachment_response_accept)
     {
         sendNextChunk(id);
@@ -293,25 +356,35 @@ void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse 
     {
         if (response != tego_attachment_response_reject)
         {
-            qWarning() << "received unknown response for file header";
+            // this can never happen kill connection if we receive invalid value here
+            emitFatalError("Received invalid FileHeaderResponse");
+            return;
         }
         // receiver rejected our transfer request, so erase it from our records
         outgoingTransfers.erase(it);
     }
-
-    emit this->fileTransferRequestResponded(message.file_id(), static_cast<tego_attachment_response_t>(response));
 }
 
 void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 {
+    if (direction() != Inbound)
+    {
+        emitFatalError("Rejected FileChunk message on outbound file channel");
+        return;
+    }
+
     auto it = incomingTransfers.find(message.file_id());
-    if (it == incomingTransfers.end()) {
+    if (it == incomingTransfers.end())
+    {
+        // we can receive an unknown chunk if we cancel in the middle of transmission
+        // so this is fine
         qWarning() << "rejecting chunk for unknown file";
         return;
     }
     else if (message.chunk_data().size() > FileMaxChunkSize)
     {
-        qWarning() << "rejecting chunk because size mismatch";
+        // something is very wrong in this case
+        emitFatalError("Rejected FileChunk because of invalid chunk_data() size");
         return;
     }
     else
@@ -325,7 +398,19 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
         const auto streamOffset = static_cast<std::streamoff>(itr.stream.tellg());
         if (streamOffset == std::streamoff(-1))
         {
-            qWarning() << "error writing chunk to stream";
+            // we should send complete message to sender if we have a disk error so they do not spam us with chunks
+            // we can't do anything with; this transfer is not recoverable, but others can continue
+            emitNonFatalError("Error writing chunk to stream", fileId, tego_attachment_result_filesystem_error);
+
+            // send message to transfer partner to let them know we've given up
+            auto notification = std::make_unique<Data::File::FileTransferCompleteNotification>();
+            notification->set_file_id(fileId);
+            notification->set_result(Protocol::Data::File::Cancelled);
+
+            Data::File::Packet packet;
+            packet.set_allocated_file_transfer_complete_notification(notification.release());
+            Channel::sendMessage(packet);
+
             return;
         }
 
@@ -392,11 +477,19 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 
 void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
 {
+    if (direction() != Outbound)
+    {
+        emitFatalError("Rejected FileChunkAck message on incoming file channel");
+        return;
+    }
+
     const auto id = message.file_id();
 
     auto it = outgoingTransfers.find(id);
     if (it == outgoingTransfers.end())
     {
+        // we can get here if the sender cancels a transfer and an ack comes in from previously sent chunk
+        // not an error
         qWarning() << "recieved ack for a chunk we never sent";
         return;
     }
@@ -406,12 +499,13 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     // verify the ack corresponds to how many bytes we've sent
     if (message.bytes_received() != otr.offset)
     {
-        qWarning() << "mismatch between bytes we have sent and the bytes the receiver claims to have received";
-        closeChannel();
+        // acks currently always come between sending chunks, so our bytes sent and their bytes received should
+        // not diverge
+        emitFatalError("mismatch between bytes we have sent and the bytes the receiver claims to have received");
         return;
     }
 
-    emit this->fileTransferProgress(otr.id, tego_attachment_direction_receiving, message.bytes_received(), otr.size);
+    emit this->fileTransferProgress(otr.id, tego_attachment_direction_receiving, otr.offset, otr.size);
 
     // send the next chunk until we are done
     if(otr.offset < otr.size)
@@ -442,27 +536,36 @@ void FileChannel::handleFileTransferCompleteNotification(const Data::File::FileT
 {
     const auto id = message.file_id();
 
-    // first look for an outgoing transfer with this id and cancel, erase it
-    if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
-    {
-        const auto& otr = it->second;
-        if (message.result() == tego_attachment_result_success)
-        {
-            logTransferStats(otr.size, otr.beginTime);
-        }
+    Q_ASSERT(direction() == Outbound || direction() == Inbound);
 
-        outgoingTransfers.erase(it);
-        emit fileTransferFinished(id, tego_attachment_direction_sending, static_cast<tego_attachment_result_t>(message.result()));
-    }
-    else if( auto it = incomingTransfers.find(id); it != incomingTransfers.end())
+    switch(direction())
     {
-        incomingTransfers.erase(it);
-        emit fileTransferFinished(id, tego_attachment_direction_receiving, static_cast<tego_attachment_result_t>(message.result()));
+    case Inbound:
+        if( auto it = incomingTransfers.find(id); it != incomingTransfers.end())
+        {
+            incomingTransfers.erase(it);
+            emit fileTransferFinished(id, tego_attachment_direction_receiving, static_cast<tego_attachment_result_t>(message.result()));
+            return;
+        }
+        break;
+    case Outbound:
+        if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
+        {
+            const auto& otr = it->second;
+            if (message.result() == tego_attachment_result_success)
+            {
+                logTransferStats(otr.size, otr.beginTime);
+            }
+
+            outgoingTransfers.erase(it);
+            emit fileTransferFinished(id, tego_attachment_direction_sending, static_cast<tego_attachment_result_t>(message.result()));
+            return;
+        }
+    default:
+        break;
     }
-    else
-    {
-        qWarning() << "received cancel request for unknown transfer:" << id;
-    }
+    // we could get here if we cancel a transfer locally before the last chunk has been ack'd, so not an error
+    qWarning() << "received cancel request for unknown transfer:" << id;
 }
 
 bool FileChannel::sendFileWithId(QString file_uri,
@@ -479,8 +582,8 @@ bool FileChannel::sendFileWithId(QString file_uri,
     QFileInfo fi(file_uri);
     if (!fi.exists())
     {
+        // this error state is bubbled up to ConversationModel
         qWarning() << "File does not exist";
-        // todo: handle error properly via callback
         return false;
     }
 
@@ -507,6 +610,7 @@ bool FileChannel::sendFileWithId(QString file_uri,
     if (!otr.stream.is_open())
     {
         qWarning() << "Failed to open file for sending header";
+        // this error state is bubbled up to ConversationModel
         return false;
     }
     outgoingTransfers.insert({file_id, std::move(otr)});
@@ -523,7 +627,7 @@ bool FileChannel::sendFileWithId(QString file_uri,
 
     Channel::sendMessage(packet);
 
-    /* the first chunk will get sent after the first header ack */
+    // the first chunk will get sent after the header reponse
     return true;
 }
 
@@ -571,16 +675,29 @@ void FileChannel::rejectFile(tego_attachment_id_t fileId)
 bool FileChannel::cancelTransfer(tego_attachment_id_t fileId)
 {
     // verify the transfer exists in our system
-    if (auto it = incomingTransfers.find(fileId); it != incomingTransfers.end())
+    switch(direction())
     {
-        incomingTransfers.erase(it);
-    }
-    else if (auto it = outgoingTransfers.find(fileId); it != outgoingTransfers.end())
-    {
-        outgoingTransfers.erase(it);
-    }
-    else
-    {
+    case Inbound:
+        if (auto it = incomingTransfers.find(fileId); it != incomingTransfers.end())
+        {
+            incomingTransfers.erase(it);
+        }
+        else
+        {
+            return false;
+        }
+        break;
+    case Outbound:
+        if (auto it = outgoingTransfers.find(fileId); it != outgoingTransfers.end())
+        {
+            outgoingTransfers.erase(it);
+        }
+        else
+        {
+            return false;
+        }
+        break;
+    default:
         return false;
     }
 
@@ -613,10 +730,22 @@ void FileChannel::sendNextChunk(tego_attachment_id_t id)
         // read the next chunk to our buffer, and update our offset
         otr.stream.read(this->chunkBuffer, FileMaxChunkSize);
         const auto chunkSize = otr.stream.gcount();
-        // ensure we read
+        // ensure we read a valid value
+        static_assert(FileMaxChunkSize != std::numeric_limits<std::streamsize>::max());
         if (chunkSize == std::numeric_limits<std::streamsize>::max())
         {
-            qWarning() << "Problem reading the next chunk from disk";
+            // not quite a fatal error, but we need to cleanup this transfer
+            emitNonFatalError("Problem reading the next chunk from disk", id, tego_attachment_result_filesystem_error);
+
+            // send message to transfer partner to let them know we've given up
+            auto notification = std::make_unique<Data::File::FileTransferCompleteNotification>();
+            notification->set_file_id(id);
+            notification->set_result(Protocol::Data::File::Cancelled);
+
+            Data::File::Packet packet;
+            packet.set_allocated_file_transfer_complete_notification(notification.release());
+            Channel::sendMessage(packet);
+
             return;
         }
         Q_ASSERT(static_cast<tego_file_size_t>(chunkSize) <= FileMaxChunkSize);

@@ -131,6 +131,11 @@ private:
     // file transfers we are receiving
     std::map<tego_attachment_id_t, incoming_transfer_record> incomingTransfers;
 
+    // called when something unrecoverable occurs, or contact is sending us bad packets, or we get in
+    // some other allegedly impossible state; kills all our transfers and disconnect the channel
+    void emitFatalError(std::string&& msg);
+    // called when some error occurs that does not affect other transfers
+    void emitNonFatalError(std::string&& msg, tego_attachment_id_t id, tego_attachment_result_t result);
 
     void handleFileHeader(const Data::File::FileHeader &message);
     void handleFileHeaderAck(const Data::File::FileHeaderAck &message);

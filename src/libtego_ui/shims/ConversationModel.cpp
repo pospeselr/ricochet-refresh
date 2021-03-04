@@ -122,6 +122,7 @@ namespace shims
                             case UnknownFailure: return tr("Unkown Failure");
                             case BadFileHash: return tr("Bad File Hash");
                             case NetworkError: return tr("Network Error");
+                            case FileSystemError: return tr("File System Error");
 
                             default: return tr("Invalid");
                         }
@@ -476,6 +477,9 @@ namespace shims
                     break;
                 case tego_attachment_result_network_error:
                     data.transferStatus = NetworkError;
+                    break;
+                case tego_attachment_result_filesystem_error:
+                    data.transferStatus = FileSystemError;
                     break;
                 default:
                     data.transferStatus = InvalidTransfer;

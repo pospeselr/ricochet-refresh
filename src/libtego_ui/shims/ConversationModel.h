@@ -50,6 +50,7 @@ namespace shims
             UnknownFailure,
             BadFileHash,
             NetworkError,
+            FileSystemError,
         };
         Q_ENUM(TransferStatus);
 
