@@ -135,8 +135,8 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_si
     if(std::ifstream file(file_uri.toStdString(), std::ios::in | std::ios::binary); file.is_open())
     {
         fileHash = std::make_unique<tego_file_hash_t>(file);
-
-        message.fileHash = QString::fromStdString(fileHash->to_string());
+        // copy for our message
+        message.fileHash = *fileHash;
     }
     else
     {

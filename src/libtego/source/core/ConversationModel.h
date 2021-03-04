@@ -110,7 +110,7 @@ private:
             File
         } type;
         QString text;
-        QString fileHash;
+        tego_file_hash_t fileHash;
         QDateTime time;
         MessageId identifier;
         MessageStatus status;

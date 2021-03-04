@@ -52,7 +52,7 @@ public:
 
     explicit FileChannel(Direction direction, Connection *connection);
 
-    bool sendFileWithId(QString file_url, QString file_hash, QDateTime time, file_id_t id);
+    bool sendFileWithId(QString file_url, const tego_file_hash_t& fileHash, QDateTime time, file_id_t id);
     void acceptFile(tego_attachment_id_t fileId, const std::string& dest);
     void rejectFile(tego_attachment_id_t fileId);
     bool cancelTransfer(tego_attachment_id_t fileId);
@@ -114,7 +114,7 @@ private:
         const file_id_t id;
         const tego_file_size_t size;
         std::string dest; // destination to save to
-        const std::string sha3_512;
+        const std::string hash;
 
         // need to write and read
         std::fstream stream;

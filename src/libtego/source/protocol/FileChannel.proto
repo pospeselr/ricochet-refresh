@@ -47,7 +47,7 @@ message FileHeader {
     required uint32 file_id = 1;
     required uint64 file_size = 2;
     required string name = 3;
-    required string sha3_512 = 4;
+    required bytes file_hash = 4;
 }
 
 message FileHeaderAck {

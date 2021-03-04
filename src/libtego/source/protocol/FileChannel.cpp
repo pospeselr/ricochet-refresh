@@ -76,7 +76,7 @@ FileChannel::incoming_transfer_record::incoming_transfer_record(
     const std::string& fileHash)
 : id(id)
 , size(fileSize)
-, sha3_512(fileHash)
+, hash(fileHash)
 , stream()
 { }
 
@@ -197,7 +197,7 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
         qWarning() << "Rejected file header with name containing '/'";
     }
     // ensure the hash is the correct length
-    else if (message.sha3_512().size() != tego_file_hash::STRING_LENGTH)
+    else if (message.file_hash().size() != tego_file_hash::DIGEST_SIZE)
     {
         qWarning() << "Rejected file header with hash incorrect length";
     }
@@ -209,11 +209,13 @@ void FileChannel::handleFileHeader(const Data::File::FileHeader &message)
     }
     else
     {
-        const auto id = message.file_id();
-        incoming_transfer_record ifr(id, message.file_size(), message.sha3_512());
-
         tego_file_hash fileHash;
-        fileHash.hex = ifr.sha3_512;
+        const auto& digest = message.file_hash();
+        // copy our digest in directly
+        std::copy(digest.begin(), digest.end(), fileHash.data.begin());
+
+        const auto id = message.file_id();
+        incoming_transfer_record ifr(id, message.file_size(), fileHash.to_string());
 
         // signal the file transfer request
         emit this->fileTransferRequestReceived(id, QString::fromStdString(message.name()), ifr.size, std::move(fileHash));
@@ -324,14 +326,12 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 
         if (bytesWritten == bytesTotal)
         {
-            /* sha3_512 validation */
-
             // reset the read/write stream and calculate the file hash
             itr.stream.seekg(0);
             tego_file_hash fileHash(itr.stream);
             itr.stream.close();
 
-            if (fileHash.to_string() != itr.sha3_512)
+            if (fileHash.to_string() != itr.hash)
             {
                 // delete file if calculated hash doesn't match expected
                 QFile::remove(QString::fromStdString(itr.partial_dest()));
@@ -448,7 +448,7 @@ void FileChannel::handleFileTransferCompleteNotification(const Data::File::FileT
 }
 
 bool FileChannel::sendFileWithId(QString file_uri,
-                                 QString file_hash,
+                                 tego_file_hash_t const& file_hash,
                                  QDateTime,
                                  file_id_t file_id)
 {
@@ -456,7 +456,6 @@ bool FileChannel::sendFileWithId(QString file_uri,
 
     // verify the args
     Q_ASSERT(!file_uri.isEmpty());
-    Q_ASSERT(file_hash.size() == tego_file_hash::STRING_LENGTH);
 
     /* only allow regular files or symlinks chains to regular files */
     QFileInfo fi(file_uri);
@@ -498,7 +497,7 @@ bool FileChannel::sendFileWithId(QString file_uri,
     auto header = std::make_unique<Data::File::FileHeader>();
     header->set_file_id(file_id);
     header->set_file_size(fileSize);
-    header->set_sha3_512(file_hash.toStdString());
+    header->set_file_hash(file_hash.data.data(), file_hash.data.size());
     header->set_name(fi.fileName().toStdString());
 
     Data::File::Packet packet;
