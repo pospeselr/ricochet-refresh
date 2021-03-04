@@ -51,7 +51,7 @@ message FileHeader {
 }
 
 message FileHeaderAck {
-    required uint64 file_id = 1;
+    required uint32 file_id = 1;
     required bool accepted = 2 [default = false];
 }
 
@@ -65,7 +65,7 @@ message FileChunk {
     required bytes chunk_data = 2;
 }
 message FileChunkAck {
-    required uint64 file_id = 1;
+    required uint32 file_id = 1;
     required uint64 bytes_received = 2;
 }
 
@@ -76,6 +76,6 @@ enum FileTransferResult {
 }
 
 message FileTransferCompleteNotification {
-    required uint64 file_id = 1;
+    required uint32 file_id = 1;
     required FileTransferResult result = 2;
 }

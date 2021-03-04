@@ -47,23 +47,20 @@ class FileChannel : public Channel
     Q_DISABLE_COPY(FileChannel);
 
 public:
-    typedef quint32 file_id_t;
-    typedef quint32 chunk_id_t;
-
     explicit FileChannel(Direction direction, Connection *connection);
 
-    bool sendFileWithId(QString file_url, const tego_file_hash_t& fileHash, QDateTime time, file_id_t id);
+    bool sendFileWithId(QString file_url, const tego_file_hash_t& fileHash, QDateTime time, tego_attachment_id_t id);
     void acceptFile(tego_attachment_id_t fileId, const std::string& dest);
     void rejectFile(tego_attachment_id_t fileId);
     bool cancelTransfer(tego_attachment_id_t fileId);
 
     // signals bubble up to the ConversationModel object that owns this FileChannel
 signals:
-    void fileTransferRequestReceived(file_id_t id, QString fileName, tego_file_size_t fileSize, tego_file_hash_t);
-    void fileTransferAcknowledged(file_id_t id, bool ack);
-    void fileTransferRequestResponded(file_id_t id, tego_attachment_response_t response);
-    void fileTransferProgress(file_id_t id, tego_attachment_direction_t direction, tego_file_size_t bytesTransmitted, tego_file_size_t bytesTotal);
-    void fileTransferFinished(file_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t);
+    void fileTransferRequestReceived(tego_attachment_id_t id, QString fileName, tego_file_size_t fileSize, tego_file_hash_t);
+    void fileTransferAcknowledged(tego_attachment_id_t id, bool ack);
+    void fileTransferRequestResponded(tego_attachment_id_t id, tego_attachment_response_t response);
+    void fileTransferProgress(tego_attachment_id_t id, tego_attachment_direction_t direction, tego_file_size_t bytesTransmitted, tego_file_size_t bytesTotal);
+    void fileTransferFinished(tego_attachment_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t);
 
 protected:
     virtual bool allowInboundChannelRequest(const Data::Control::OpenChannel *request, Data::Control::ChannelResult *result);
@@ -83,13 +80,13 @@ private:
     struct outgoing_transfer_record
     {
         outgoing_transfer_record(
-            file_id_t id,
+            tego_attachment_id_t id,
             const std::string& filePath,
             tego_file_size_t fileSize);
 
         std::chrono::time_point<std::chrono::system_clock> beginTime;
 
-        const file_id_t id;
+        const tego_attachment_id_t id;
         const tego_file_size_t size;
         tego_file_size_t offset;
         std::ifstream stream;
@@ -100,7 +97,7 @@ private:
     struct incoming_transfer_record
 	{
         incoming_transfer_record(
-            file_id_t id,
+            tego_attachment_id_t id,
             tego_file_size_t fileSize,
             const std::string& fileHash);
         // explicit destructor defined, so we need to explicitly define a move constructor
@@ -111,7 +108,7 @@ private:
 
         std::chrono::time_point<std::chrono::system_clock> beginTime;
 
-        const file_id_t id;
+        const tego_attachment_id_t id;
         const tego_file_size_t size;
         std::string dest; // destination to save to
         const std::string hash;
@@ -130,9 +127,10 @@ private:
     char chunkBuffer[FileMaxChunkSize];
 
     // file transfers we are sending
-    std::map<file_id_t, outgoing_transfer_record> outgoingTransfers;
+    std::map<tego_attachment_id_t, outgoing_transfer_record> outgoingTransfers;
     // file transfers we are receiving
-    std::map<file_id_t, incoming_transfer_record> incomingTransfers;
+    std::map<tego_attachment_id_t, incoming_transfer_record> incomingTransfers;
+
 
     void handleFileHeader(const Data::File::FileHeader &message);
     void handleFileHeaderAck(const Data::File::FileHeaderAck &message);
@@ -140,9 +138,8 @@ private:
     void handleFileChunk(const Data::File::FileChunk &message);
     void handleFileChunkAck(const Data::File::FileChunkAck &message);
     void handleFileTransferCompleteNotification(const Data::File::FileTransferCompleteNotification &message);
-    void sendNextChunk(file_id_t id);
+    void sendNextChunk(tego_attachment_id_t id);
 };
 
 }
-
 #endif
