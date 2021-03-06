@@ -40,11 +40,6 @@
 class ConversationModel : public QAbstractListModel
 {
     Q_OBJECT
-    Q_ENUMS(MessageStatus)
-
-    Q_PROPERTY(ContactUser* contact READ contact WRITE setContact NOTIFY contactChanged)
-    Q_PROPERTY(int unreadCount READ unreadCount RESET resetUnreadCount NOTIFY unreadCountChanged)
-
 public:
     typedef Protocol::ChatChannel::MessageId MessageId;
     static_assert(std::is_same_v<MessageId, tego_message_id_t>);
@@ -71,7 +66,7 @@ public:
     void setContact(ContactUser *contact);
 
     int unreadCount() const { return m_unreadCount; }
-    Q_INVOKABLE void resetUnreadCount();
+    void resetUnreadCount();
 
     virtual QHash<int,QByteArray> roleNames() const;
     virtual int rowCount(const QModelIndex &parent = QModelIndex()) const;
