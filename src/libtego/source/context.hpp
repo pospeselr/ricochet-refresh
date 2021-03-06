@@ -52,17 +52,17 @@ public:
     size_t get_user_count() const;
     std::vector<tego_user_id_t*> get_users() const;
     void forget_user(const tego_user_id_t* user);
-    std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_size_t> send_attachment_request(
+    std::tuple<tego_file_transfer_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_size_t> send_file_transfer_request(
         tego_user_id_t const* user,
         std::string const& filePath);
-    void respond_attachment_request(
+    void respond_file_transfer_request(
         tego_user_id_t const* user,
-        tego_attachment_id_t attachment,
-        tego_attachment_response_t response,
+        tego_file_transfer_id_t fileTransfer,
+        tego_file_transfer_response_t response,
         std::string const& destPath);
-    void cancel_attachment_transfer(
+    void cancel_file_transfer_transfer(
         tego_user_id_t const* user,
-        tego_attachment_id_t);
+        tego_file_transfer_id_t);
 
     tego::callback_registry callback_registry_;
     tego::callback_queue callback_queue_;

@@ -77,12 +77,12 @@ public:
     virtual int rowCount(const QModelIndex &parent = QModelIndex()) const;
     virtual QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
 
-    std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_size_t> sendFile(const QString &file_url);
+    std::tuple<tego_file_transfer_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_size_t> sendFile(const QString &file_url);
     tego_message_id_t sendMessage(const QString &text);
 
-    void acceptFile(tego_attachment_id_t fileId, const std::string& dest);
-    void rejectFile(tego_attachment_id_t fileId);
-    void cancelTransfer(tego_attachment_id_t fileId);
+    void acceptFile(tego_file_transfer_id_t id, const std::string& dest);
+    void rejectFile(tego_file_transfer_id_t id);
+    void cancelTransfer(tego_file_transfer_id_t id);
 
     void clear();
 
@@ -97,11 +97,11 @@ private slots:
     void sendQueuedMessages();
     void onContactStatusChanged();
 
-    void onFileTransferRequestReceived(tego_attachment_id_t id, const QString& filename, tego_file_size_t fileSize, tego_file_hash_t hash);
-    void onFileTransferAcknowledged(tego_attachment_id_t id, bool ack);
-    void onFileTransferRequestResponded(tego_attachment_id_t id, tego_attachment_response_t response);
-    void onFileTransferProgress(tego_attachment_id_t id, tego_attachment_direction_t direction, tego_file_size_t bytesTransmitted, tego_file_size_t bytesTotal);
-    void onFileTransferFinished(tego_attachment_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t result);
+    void onFileTransferRequestReceived(tego_file_transfer_id_t id, const QString& filename, tego_file_size_t fileSize, tego_file_hash_t hash);
+    void onFileTransferAcknowledged(tego_file_transfer_id_t id, bool ack);
+    void onFileTransferRequestResponded(tego_file_transfer_id_t id, tego_file_transfer_response_t response);
+    void onFileTransferProgress(tego_file_transfer_id_t id, tego_file_transfer_direction_t direction, tego_file_size_t bytesTransmitted, tego_file_size_t bytesTotal);
+    void onFileTransferFinished(tego_file_transfer_id_t id, tego_file_transfer_direction_t direction, tego_file_transfer_result_t result);
 
 private:
     struct MessageData {

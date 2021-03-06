@@ -144,11 +144,11 @@ extern "C"
     TEGO_DEFINE_CALLBACK_SETTER(chat_request_response_received);
     TEGO_DEFINE_CALLBACK_SETTER(message_received);
     TEGO_DEFINE_CALLBACK_SETTER(message_acknowledged);
-    TEGO_DEFINE_CALLBACK_SETTER(attachment_request_received);
-    TEGO_DEFINE_CALLBACK_SETTER(attachment_request_acknowledged);
-    TEGO_DEFINE_CALLBACK_SETTER(attachment_request_response_received);
-    TEGO_DEFINE_CALLBACK_SETTER(attachment_progress);
-    TEGO_DEFINE_CALLBACK_SETTER(attachment_complete);
+    TEGO_DEFINE_CALLBACK_SETTER(file_transfer_request_received);
+    TEGO_DEFINE_CALLBACK_SETTER(file_transfer_request_acknowledged);
+    TEGO_DEFINE_CALLBACK_SETTER(file_transfer_request_response_received);
+    TEGO_DEFINE_CALLBACK_SETTER(file_transfer_progress);
+    TEGO_DEFINE_CALLBACK_SETTER(file_transfer_complete);
     TEGO_DEFINE_CALLBACK_SETTER(user_status_changed);
     TEGO_DEFINE_CALLBACK_SETTER(new_identity_created);
 }

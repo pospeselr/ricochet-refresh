@@ -821,8 +821,8 @@ void tego_context_get_tor_bootstrap_status(
 typedef uint64_t tego_time_t;
 // unique (per user) message identifier
 typedef uint32_t tego_message_id_t;
-// unique (per user) attachment identifier
-typedef uint32_t tego_attachment_id_t;
+// unique (per user) file transfer identifier
+typedef uint32_t tego_file_transfer_id_t;
 // struct for file hash
 typedef struct tego_file_hash tego_file_hash_t;
 // intger type for file size
@@ -883,59 +883,59 @@ void tego_context_send_message(
  * @param user : the user to send a file to
  * @param filePath : utf8 path to file to send
  * @param filePathLength : length of filePath not including null-terminator
- * @param out_id : optional, filled with assigned attachment id for callbacks
+ * @param out_id : optional, filled with assigned file transfer id for callbacks
  * @param out_fileHash : optional, filled with hash of the file to send
  * @param out_fileSize : optional, filled with the size of the file in bytes
  * @param error : filled on error
  */
-void tego_context_send_attachment_request(
+void tego_context_send_file_transfer_request(
     tego_context_t* context,
     tego_user_id_t const*  user,
     char const* filePath,
     size_t filePathLength,
-    tego_attachment_id_t* out_id,
+    tego_file_transfer_id_t* out_id,
     tego_file_hash_t** out_fileHash,
     tego_file_size_t* out_fileSize,
     tego_error_t** error);
 
 typedef enum
 {
-    tego_attachment_response_accept, // proceed with a file transfer
-    tego_attachment_response_reject, // reject the file transfer
-} tego_attachment_response_t;
+    tego_file_transfer_response_accept, // proceed with a file transfer
+    tego_file_transfer_response_reject, // reject the file transfer
+} tego_file_transfer_response_t;
 
 /*
- * Acknowledges a request to send an attachment
+ * Acknowledges a request to send an file_transfer
  *
  * @param context : the current tego context
- * @param user : the user that sent the attachment request
- * @param attachment : which attachment request to respond to
+ * @param user : the user that sent the file transfer request
+ * @param id : which file transfer to respond to
  * @param response : how to respond to the request
- * @param destPath : optional, destination to save the attachment
+ * @param destPath : optional, destination to save the file
  * @param destPathLength : length of destPath not including the null-terminator
  * @param error : filled on error
  */
-void tego_context_respond_attachment_request(
+void tego_context_respond_file_transfer_request(
     tego_context_t* context,
     tego_user_id_t const* user,
-    tego_attachment_id_t attachment,
-    tego_attachment_response_t response,
+    tego_file_transfer_id_t id,
+    tego_file_transfer_response_t response,
     char const* destPath,
     size_t destPathLength,
     tego_error_t** error);
 
 /*
- * Cancel an in-progress attachment transfer
+ * Cancel an in-progress file transfer
  *
  * @param context : the current tego context
  * @param user : the user that is sending/receiving the transfer
- * @param id : the attachment transfer to cancel
+ * @param id : the file transfer to cancel
  * @param error: filled on error
  */
-void tego_context_cancel_attachment_transfer(
+void tego_context_cancel_file_transfer(
     tego_context_t* context,
     tego_user_id_t const* user,
-    tego_attachment_id_t id,
+    tego_file_transfer_id_t id,
     tego_error_t** error);
 
 /*
@@ -1170,108 +1170,108 @@ typedef void (*tego_message_acknowledged_callback_t)(
 
 
 /*
- * Callback fired when a user wants to send recipient an attachment
+ * Callback fired when a user wants to send recipient a file
  *
  * @param context : the current tego context
  * @param sender : the user sending the request
- * @param attachmentId : id of the attachment received
- * @param attachmentName : name of the file user wants to send
- * @param attachmentNameLength : length of attachmentName not including the null-terminator
- * @param attachmentSize : size of the attachment in bytes
- * @param fileHash : hash of the attachment user
+ * @param id : id of the file transfer received
+ * @param fileName : name of the file user wants to send
+ * @param fileNameLength : length of fileName not including the null-terminator
+ * @param fileSize : size of the file in bytes
+ * @param fileHash : hash of the file
  */
-typedef void (*tego_attachment_request_received_callback_t)(
+typedef void (*tego_file_transfer_request_received_callback_t)(
     tego_context* context,
     tego_user_id_t const* sender,
-    tego_attachment_id_t attachmentId,
-    char const* attachmentName,
-    size_t attachmentNameLength,
-    tego_file_size_t attachmentSize,
+    tego_file_transfer_id_t id,
+    char const* fileName,
+    size_t fileNameLength,
+    tego_file_size_t fileSize,
     tego_file_hash_t const* fileHash);
 
 /*
- * Callback fired when a transfer request message is received and
+ * Callback fired when a file transfer request message is received and
  * acknowledged by the recipient (not whether the recipient wishes to start
- * the attachment transfer)
+ * the file transfer)
  *
  * @param context : the current tego cotext
  * @param receiver : the user acknowledging our request
- * @param attachmentId : the id of the attachment that is being acknowledged
+ * @param id : the id of the file transfer that is being acknowledged
  * @param requestAcked : TEGO_TRUE if acknowledged, TEGO_FALSE if error
  */
-typedef void (*tego_attachment_request_acknowledged_callback_t)(
+typedef void (*tego_file_transfer_request_acknowledged_callback_t)(
     tego_context_t* context,
     tego_user_id_t const* receiver,
-    tego_attachment_id_t attachmentId,
+    tego_file_transfer_id_t id,
     tego_bool_t requestAcked);
 
 /*
- * Callback fired when the user responds to an attachment request
+ * Callback fired when the user responds to an file transfer request
  *
  * @param context : the current tego context
  * @param receiver : the user accepting or rejecting our request
- * @param attachmentId : the id of the attachment that is being accepted
+ * @param id : the id of the file transfer that is being accepted
  * @param response : TEGO_TRUE if the recipients wants to recevie
  *  our file, TEGO_FALSE otherwise
  */
-typedef void (*tego_attachment_request_response_received_callback_t)(
+typedef void (*tego_file_transfer_request_response_received_callback_t)(
     tego_context_t* context,
     tego_user_id_t const* receiver,
-    tego_attachment_id_t attachmentId,
-    tego_attachment_response_t response);
+    tego_file_transfer_id_t id,
+    tego_file_transfer_response_t response);
 
 typedef enum
 {
-    tego_attachment_direction_sending,
-    tego_attachment_direction_receiving,
-} tego_attachment_direction_t;
+    tego_file_transfer_direction_sending,
+    tego_file_transfer_direction_receiving,
+} tego_file_transfer_direction_t;
 
 /*
- * Callback fired when attachment send or receive progress has changed
+ * Callback fired when file transfer send or receive progress has changed
  * This callback is fired for both the sender and the receiver
  *
  * @param context : the current tego context
- * @param userId : the user sending/receiving the attachment
- * @param attachmentId : the attachment associated with this callback
- * @param attachmentDirection : the direction this attachment is going
+ * @param userId : the user sending/receiving the file
+ * @param id : the file transfer associated with this callback
+ * @param direction : the direction this file is going
  * @param bytesComplete : number of bytes sent/received
- * @param bytesTotal : the total size of the attachment
+ * @param bytesTotal : the total size of the file
  */
-typedef void (*tego_attachment_progress_callback_t)(
+typedef void (*tego_file_transfer_progress_callback_t)(
     tego_context_t* context,
     const tego_user_id_t* userId,
-    tego_attachment_id_t attachmentId,
-    tego_attachment_direction_t attachmentDirection,
+    tego_file_transfer_id_t id,
+    tego_file_transfer_direction_t direction,
     tego_file_size_t bytesComplete,
     tego_file_size_t bytesTotal);
 
 typedef enum
 {
-    tego_attachment_result_success,          // file transfer completed successfully
-    tego_attachment_result_failure,          // file transfer failed for unknown reason
-    tego_attachment_result_cancelled,        // file transfer was cancelled by one of the participants after it had started
-    tego_attachment_result_rejected,         // file transfer request was rejected by the receiver
-    tego_attachment_result_bad_hash,         // file transfer completed but final file's hash did not match the one advertised
-    tego_attachment_result_network_error,    // file transfer failed due to connectivity problem
-    tego_attachment_result_filesystem_error, // file transfer failed due to a file system error
-} tego_attachment_result_t;
+    tego_file_transfer_result_success,          // file transfer completed successfully
+    tego_file_transfer_result_failure,          // file transfer failed for unknown reason
+    tego_file_transfer_result_cancelled,        // file transfer was cancelled by one of the participants after it had started
+    tego_file_transfer_result_rejected,         // file transfer request was rejected by the receiver
+    tego_file_transfer_result_bad_hash,         // file transfer completed but final file's hash did not match the one advertised
+    tego_file_transfer_result_network_error,    // file transfer failed due to connectivity problem
+    tego_file_transfer_result_filesystem_error, // file transfer failed due to a file system error
+} tego_file_transfer_result_t;
 
 /*
- * Callback fired when an attachment transfer has completed
+ * Callback fired when a file transfer has completed
  * either successfully or in error
  *
  * @param context : the current tego context
- * @param userId : the user sending/receivintg the attachment
- * @param attachmentId : the attachment associated with this callback
- * @param attachmentDirection : the direction this attachment was going
- * @param attachmentResult :
+ * @param userId : the user sending/receivintg the file
+ * @param id : the file transfer associated with this callback
+ * @param direction : the direction this file was going
+ * @param result : how the transfer completed
  */
-typedef void (*tego_attachment_complete_callback_t)(
+typedef void (*tego_file_transfer_complete_callback_t)(
     tego_context_t* context,
     const tego_user_id_t* userId,
-    tego_attachment_id_t attachmentId,
-    tego_attachment_direction_t attachmentDirection,
-    tego_attachment_result_t attachmentResult);
+    tego_file_transfer_id_t id,
+    tego_file_transfer_direction_t direction,
+    tego_file_transfer_result_t result);
 
 /*
  * Callback fired when a user's status changes
@@ -1360,29 +1360,29 @@ void tego_context_set_message_acknowledged_callback(
     tego_message_acknowledged_callback_t,
     tego_error_t** error);
 
-void tego_context_set_attachment_request_received_callback(
+void tego_context_set_file_transfer_request_received_callback(
     tego_context_t* context,
-    tego_attachment_request_received_callback_t,
+    tego_file_transfer_request_received_callback_t,
     tego_error_t** error);
 
-void tego_context_set_attachment_request_acknowledged_callback(
+void tego_context_set_file_transfer_request_acknowledged_callback(
     tego_context_t* context,
-    tego_attachment_request_acknowledged_callback_t,
+    tego_file_transfer_request_acknowledged_callback_t,
     tego_error_t** error);
 
-void tego_context_set_attachment_request_response_received_callback(
+void tego_context_set_file_transfer_request_response_received_callback(
     tego_context_t* context,
-    tego_attachment_request_response_received_callback_t,
+    tego_file_transfer_request_response_received_callback_t,
     tego_error_t** error);
 
-void tego_context_set_attachment_progress_callback(
+void tego_context_set_file_transfer_progress_callback(
     tego_context_t* context,
-    tego_attachment_progress_callback_t,
+    tego_file_transfer_progress_callback_t,
     tego_error_t** error);
 
-void tego_context_set_attachment_complete_callback(
+void tego_context_set_file_transfer_complete_callback(
     tego_context_t* context,
-    tego_attachment_complete_callback_t,
+    tego_file_transfer_complete_callback_t,
     tego_error_t** error);
 
 void tego_context_set_user_status_changed_callback(

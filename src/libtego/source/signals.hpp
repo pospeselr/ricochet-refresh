@@ -91,11 +91,11 @@ namespace tego
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(message_received, tego_user_id_t*, tego_time_t, tego_message_id_t,
             char*, size_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(message_acknowledged, tego_user_id_t*, tego_message_id_t, tego_bool_t);
-        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_request_received, tego_user_id_t*, tego_attachment_id_t, char*, size_t, uint64_t, tego_file_hash_t*);
-        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_request_acknowledged, tego_user_id_t*, tego_attachment_id_t, tego_bool_t);
-        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_request_response_received, tego_user_id_t*, tego_attachment_id_t, tego_attachment_response_t);
-        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_progress, tego_user_id_t*, tego_attachment_id_t, tego_attachment_direction_t, uint64_t, uint64_t);
-        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(attachment_complete, tego_user_id_t*, tego_attachment_id_t, tego_attachment_direction_t, tego_attachment_result_t);
+        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(file_transfer_request_received, tego_user_id_t*, tego_file_transfer_id_t, char*, size_t, uint64_t, tego_file_hash_t*);
+        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(file_transfer_request_acknowledged, tego_user_id_t*, tego_file_transfer_id_t, tego_bool_t);
+        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(file_transfer_request_response_received, tego_user_id_t*, tego_file_transfer_id_t, tego_file_transfer_response_t);
+        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(file_transfer_progress, tego_user_id_t*, tego_file_transfer_id_t, tego_file_transfer_direction_t, uint64_t, uint64_t);
+        TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(file_transfer_complete, tego_user_id_t*, tego_file_transfer_id_t, tego_file_transfer_direction_t, tego_file_transfer_result_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(user_status_changed, tego_user_id_t*, tego_user_status_t);
         TEGO_IMPLEMENT_CALLBACK_FUNCTIONS(new_identity_created, tego_ed25519_private_key_t*);
 

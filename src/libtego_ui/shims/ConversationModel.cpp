@@ -227,27 +227,27 @@ namespace shims
             auto context = userIdentity->getContext();
             const auto path = filePath.toUtf8();
             const auto userId = this->contactUser->toTegoUserId();
-            tego_attachment_id_t attachmentId;
+            tego_file_transfer_id_t id;
             std::unique_ptr<tego_file_hash_t> fileHash;
             tego_file_size_t fileSize = 0;
 
             try
             {
-                tego_context_send_attachment_request(
+                tego_context_send_file_transfer_request(
                     context,
                     userId.get(),
                     path.data(),
                     path.size(),
-                    &attachmentId,
+                    &id,
                     tego::out(fileHash),
                     &fileSize,
                     tego::throw_on_error());
 
-                logger::println("send file request id : {}, hash : {}", attachmentId, tego::to_string(fileHash.get()));
+                logger::println("send file request id : {}, hash : {}", id, tego::to_string(fileHash.get()));
 
                 MessageData md;
                 md.type = TransferMessage;
-                md.identifier = attachmentId;
+                md.identifier = id;
                 md.time = QDateTime::currentDateTime();
                 md.status = Queued;
 
@@ -268,9 +268,9 @@ namespace shims
         }
     }
 
-    void ConversationModel::tryAcceptAttachmentTransfer(quint32 attachmentId)
+    void ConversationModel::tryAcceptFileTransfer(quint32 id)
     {
-        auto row = this->indexOfIncomingMessage(attachmentId);
+        auto row = this->indexOfIncomingMessage(id);
         if (row < 0)
         {
             return;
@@ -294,11 +294,11 @@ namespace shims
 
             try
             {
-                tego_context_respond_attachment_request(
+                tego_context_respond_file_transfer_request(
                     context,
                     sender.get(),
-                    attachmentId,
-                    tego_attachment_response_accept,
+                    id,
+                    tego_file_transfer_response_accept,
                     destination.data(),
                     destination.size(),
                     tego::throw_on_error());
@@ -313,11 +313,11 @@ namespace shims
         }
     }
 
-    void ConversationModel::cancelAttachmentTransfer(tego_attachment_id_t attachmentId)
+    void ConversationModel::cancelFileTransfer(tego_file_transfer_id_t id)
     {
         // we get the cancelled callback if we cancel or if the other user cancelled,
         // so ensure we only do work if it was the other preson cancelling
-        auto row = this->indexOfMessage(attachmentId);
+        auto row = this->indexOfMessage(id);
         if (row < 0)
         {
             return;
@@ -329,18 +329,16 @@ namespace shims
             data.transferStatus = Cancelled;
             emitDataChanged(row);
 
-            logger::println("request to cancel attachment transfer: {}", attachmentId);
-
             auto userIdentity = shims::UserIdentity::userIdentity;
             auto context = userIdentity->getContext();
             const auto userId = this->contactUser->toTegoUserId();
 
             try
             {
-                tego_context_cancel_attachment_transfer(
+                tego_context_cancel_file_transfer(
                     context,
                     userId.get(),
-                    attachmentId,
+                    id,
                     tego::throw_on_error());
             }
             catch(const std::runtime_error& err)
@@ -350,9 +348,9 @@ namespace shims
         }
     }
 
-    void ConversationModel::rejectAttachmentTransfer(quint32 attachmentId)
+    void ConversationModel::rejectFileTransfer(quint32 id)
     {
-        auto row = this->indexOfIncomingMessage(attachmentId);
+        auto row = this->indexOfIncomingMessage(id);
         if (row < 0)
         {
             return;
@@ -366,11 +364,11 @@ namespace shims
 
         try
         {
-            tego_context_respond_attachment_request(
+            tego_context_respond_file_transfer_request(
                 context,
                 sender.get(),
-                attachmentId,
-                tego_attachment_response_reject,
+                id,
+                tego_file_transfer_response_reject,
                 nullptr,
                 0,
                 tego::throw_on_error());
@@ -384,13 +382,11 @@ namespace shims
         emitDataChanged(row);
     }
 
-    void ConversationModel::attachmentRequestReceived(tego_attachment_id_t attachmentId, QString fileName, QString fileHash, quint64 fileSize)
+    void ConversationModel::fileTransferRequestReceived(tego_file_transfer_id_t id, QString fileName, QString fileHash, quint64 fileSize)
     {
-        logger::println("attachmentRequestReceived: {}, {}, {}, {}", attachmentId, fileName, fileHash, fileSize);
-
         MessageData md;
         md.type = TransferMessage;
-        md.identifier = attachmentId;
+        md.identifier = id;
         md.time = QDateTime::currentDateTime();
         md.status = Received;
 
@@ -407,9 +403,9 @@ namespace shims
         this->setUnreadCount(this->unreadCount + 1);
     }
 
-    void ConversationModel::attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted)
+    void ConversationModel::fileTransferRequestAcknowledged(tego_file_transfer_id_t id, bool accepted)
     {
-        auto row = this->indexOfOutgoingMessage(attachmentId);
+        auto row = this->indexOfOutgoingMessage(id);
         Q_ASSERT(row >= 0);
 
         MessageData &data = messages[row];
@@ -417,18 +413,18 @@ namespace shims
         emitDataChanged(row);
     }
 
-    void ConversationModel::attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response)
+    void ConversationModel::fileTransferRequestResponded(tego_file_transfer_id_t id, tego_file_transfer_response_t response)
     {
-        auto row = this->indexOfOutgoingMessage(attachmentId);
+        auto row = this->indexOfOutgoingMessage(id);
         Q_ASSERT(row >= 0);
 
         MessageData &data = messages[row];
         switch(response)
         {
-            case tego_attachment_response_accept:
+            case tego_file_transfer_response_accept:
                 data.transferStatus = Pending;
                 break;
-            case tego_attachment_response_reject:
+            case tego_file_transfer_response_reject:
                 data.transferStatus = Rejected;
                 break;
             default:
@@ -438,9 +434,9 @@ namespace shims
         emitDataChanged(row);
     }
 
-    void ConversationModel::attachmentRequestProgressUpdated(tego_attachment_id_t attachmentId, quint64 bytesTransferred)
+    void ConversationModel::fileTransferRequestProgressUpdated(tego_file_transfer_id_t id, quint64 bytesTransferred)
     {
-        auto row = this->indexOfMessage(attachmentId);
+        auto row = this->indexOfMessage(id);
         if (row >= 0)
         {
             MessageData &data = messages[row];
@@ -451,34 +447,34 @@ namespace shims
         }
     }
 
-    void ConversationModel::attachmentRequestCompleted(
-        tego_attachment_id_t attachmentId,  tego_attachment_result_t result)
+    void ConversationModel::fileTransferRequestCompleted(
+        tego_file_transfer_id_t id,  tego_file_transfer_result_t result)
     {
-        auto row = this->indexOfMessage(attachmentId);
+        auto row = this->indexOfMessage(id);
         if (row >= 0)
         {
             auto &data = messages[row];
             switch(result)
             {
-                case tego_attachment_result_success:
+                case tego_file_transfer_result_success:
                     data.transferStatus = Finished;
                     break;
-                case tego_attachment_result_failure:
+                case tego_file_transfer_result_failure:
                     data.transferStatus = UnknownFailure;
                     break;
-                case tego_attachment_result_cancelled:
+                case tego_file_transfer_result_cancelled:
                     data.transferStatus = Cancelled;
                     break;
-                case tego_attachment_result_rejected:
+                case tego_file_transfer_result_rejected:
                     data.transferStatus = Rejected;
                     break;
-                case tego_attachment_result_bad_hash:
+                case tego_file_transfer_result_bad_hash:
                     data.transferStatus = BadFileHash;
                     break;
-                case tego_attachment_result_network_error:
+                case tego_file_transfer_result_network_error:
                     data.transferStatus = NetworkError;
                     break;
-                case tego_attachment_result_filesystem_error:
+                case tego_file_transfer_result_filesystem_error:
                     data.transferStatus = FileSystemError;
                     break;
                 default:
@@ -505,11 +501,6 @@ namespace shims
 
     void ConversationModel::messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text)
     {
-        logger::trace();
-        logger::println(" messageId : {}", messageId);
-        logger::println(" text : '{}'", text);
-        logger::println(" time : {}", timestamp.toString());
-
         MessageData md;
         md.type = TextMessage;
         md.text = text;

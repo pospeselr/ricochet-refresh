@@ -590,7 +590,7 @@ void tego_context::forget_user(const tego_user_id_t* user)
     contactUser->deleteContact();
 }
 
-std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_size_t> tego_context::send_attachment_request(
+std::tuple<tego_file_transfer_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_size_t> tego_context::send_file_transfer_request(
     tego_user_id_t const* user,
     std::string const& filePath)
 {
@@ -603,19 +603,19 @@ std::tuple<tego_attachment_id_t, std::unique_ptr<tego_file_hash_t>, tego_file_si
     return conversationModel->sendFile(QString::fromStdString(filePath));
 }
 
-void tego_context::respond_attachment_request(
+void tego_context::respond_file_transfer_request(
     tego_user_id_t const* user,
-    tego_attachment_id_t attachment,
-    tego_attachment_response_t response,
+    tego_file_transfer_id_t fileTransfer,
+    tego_file_transfer_response_t response,
     std::string const& destPath)
 {
     // ensure we have a valid user
     TEGO_THROW_IF_NULL(user);
     // ensure a valid response
-    TEGO_THROW_IF_FALSE(response == tego_attachment_response_accept ||
-                        response == tego_attachment_response_reject);
+    TEGO_THROW_IF_FALSE(response == tego_file_transfer_response_accept ||
+                        response == tego_file_transfer_response_reject);
     // ensure non-empty dest path in case we are accepting
-    TEGO_THROW_IF_TRUE(response == tego_attachment_response_accept && destPath.empty())
+    TEGO_THROW_IF_TRUE(response == tego_file_transfer_response_accept && destPath.empty())
 
     auto contactUser = this->getContactUser(user);
     TEGO_THROW_IF_NULL(contactUser);
@@ -623,22 +623,22 @@ void tego_context::respond_attachment_request(
 
     switch(response)
     {
-        case tego_attachment_response_accept:
+        case tego_file_transfer_response_accept:
         {
-            conversationModel->acceptFile(attachment, destPath);
+            conversationModel->acceptFile(fileTransfer, destPath);
         }
         break;
-        case tego_attachment_response_reject:
+        case tego_file_transfer_response_reject:
         {
-            conversationModel->rejectFile(attachment);
+            conversationModel->rejectFile(fileTransfer);
         }
         break;
     }
 }
 
-void tego_context::cancel_attachment_transfer(
+void tego_context::cancel_file_transfer_transfer(
     tego_user_id_t const* user,
-    tego_attachment_id_t attachment)
+    tego_file_transfer_id_t fileTransfer)
 {
     // ensure we have a valid user
     TEGO_THROW_IF_NULL(user);
@@ -647,7 +647,7 @@ void tego_context::cancel_attachment_transfer(
     TEGO_THROW_IF_NULL(contactUser);
     auto conversationModel = contactUser->conversation();
 
-    conversationModel->cancelTransfer(attachment);
+    conversationModel->cancelTransfer(fileTransfer);
 }
 
 //
@@ -1083,12 +1083,12 @@ extern "C"
         }, error);
     }
 
-    void tego_context_send_attachment_request(
+    void tego_context_send_file_transfer_request(
         tego_context* context,
         tego_user_id_t const*  user,
         char const* filePath,
         size_t filePathLength,
-        tego_attachment_id_t* out_id,
+        tego_file_transfer_id_t* out_id,
         tego_file_hash_t** out_fileHash,
         tego_file_size_t* out_fileSize,
         tego_error_t** error)
@@ -1102,7 +1102,7 @@ extern "C"
             TEGO_THROW_IF_FALSE(filePathLength > 0);
 
             auto [id, fileHash, fileSize] =
-                context->send_attachment_request(
+                context->send_file_transfer_request(
                     user,
                     std::string(filePath, filePathLength));
 
@@ -1122,11 +1122,11 @@ extern "C"
         }, error);
     }
 
-    void tego_context_respond_attachment_request(
+    void tego_context_respond_file_transfer_request(
         tego_context* context,
         tego_user_id_t const* user,
-        tego_attachment_id_t attachment,
-        tego_attachment_response_t response,
+        tego_file_transfer_id_t fileTransfer,
+        tego_file_transfer_response_t response,
         char const* destPath,
         size_t destPathLength,
         tego_error_t** error)
@@ -1137,24 +1137,24 @@ extern "C"
             TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(user);
             // dest string must be valid is accept
-            TEGO_THROW_IF_TRUE(response == tego_attachment_response_accept &&
+            TEGO_THROW_IF_TRUE(response == tego_file_transfer_response_accept &&
                 (destPath == nullptr || destPathLength == 0))
             // dest string must be null and empty if reject
-            TEGO_THROW_IF_TRUE(response == tego_attachment_response_reject &&
+            TEGO_THROW_IF_TRUE(response == tego_file_transfer_response_reject &&
                 (destPath != nullptr || destPathLength > 0))
 
-            context->respond_attachment_request(
+            context->respond_file_transfer_request(
                 user,
-                attachment,
+                fileTransfer,
                 response,
                 destPath ? std::string(destPath, destPathLength) : std::string());
         }, error);
     }
 
-    void tego_context_cancel_attachment_transfer(
+    void tego_context_cancel_file_transfer(
         tego_context* context,
         tego_user_id_t const* user,
-        tego_attachment_id_t id,
+        tego_file_transfer_id_t id,
         tego_error_t** error)
     {
         return tego::translateExceptions([=]() -> void
@@ -1162,7 +1162,7 @@ extern "C"
             TEGO_THROW_IF_NULL(context);
             TEGO_THROW_IF_FALSE(context->threadId == std::this_thread::get_id());
             TEGO_THROW_IF_NULL(user);
-            context->cancel_attachment_transfer(user, id);
+            context->cancel_file_transfer_transfer(user, id);
         }, error);
     }
 

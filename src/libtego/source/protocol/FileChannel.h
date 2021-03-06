@@ -49,17 +49,17 @@ class FileChannel : public Channel
 public:
     explicit FileChannel(Direction direction, Connection *connection);
 
-    bool sendFileWithId(QString file_url, const tego_file_hash_t& fileHash, QDateTime time, tego_attachment_id_t id);
-    void acceptFile(tego_attachment_id_t fileId, const std::string& dest);
-    void rejectFile(tego_attachment_id_t fileId);
-    bool cancelTransfer(tego_attachment_id_t fileId);
+    bool sendFileWithId(QString file_url, const tego_file_hash_t& fileHash, QDateTime time, tego_file_transfer_id_t id);
+    void acceptFile(tego_file_transfer_id_t id, const std::string& dest);
+    void rejectFile(tego_file_transfer_id_t id);
+    bool cancelTransfer(tego_file_transfer_id_t id);
     // signals bubble up to the ConversationModel object that owns this FileChannel
 signals:
-    void fileTransferRequestReceived(tego_attachment_id_t id, QString fileName, tego_file_size_t fileSize, tego_file_hash_t);
-    void fileTransferAcknowledged(tego_attachment_id_t id, bool ack);
-    void fileTransferRequestResponded(tego_attachment_id_t id, tego_attachment_response_t response);
-    void fileTransferProgress(tego_attachment_id_t id, tego_attachment_direction_t direction, tego_file_size_t bytesTransmitted, tego_file_size_t bytesTotal);
-    void fileTransferFinished(tego_attachment_id_t id, tego_attachment_direction_t direction, tego_attachment_result_t);
+    void fileTransferRequestReceived(tego_file_transfer_id_t id, QString fileName, tego_file_size_t fileSize, tego_file_hash_t);
+    void fileTransferAcknowledged(tego_file_transfer_id_t id, bool ack);
+    void fileTransferRequestResponded(tego_file_transfer_id_t id, tego_file_transfer_response_t response);
+    void fileTransferProgress(tego_file_transfer_id_t id, tego_file_transfer_direction_t direction, tego_file_size_t bytesTransmitted, tego_file_size_t bytesTotal);
+    void fileTransferFinished(tego_file_transfer_id_t id, tego_file_transfer_direction_t direction, tego_file_transfer_result_t);
 
 protected:
     virtual bool allowInboundChannelRequest(const Data::Control::OpenChannel *request, Data::Control::ChannelResult *result);
@@ -81,13 +81,13 @@ private:
     struct outgoing_transfer_record
     {
         outgoing_transfer_record(
-            tego_attachment_id_t id,
+            tego_file_transfer_id_t id,
             const std::string& filePath,
             tego_file_size_t fileSize);
 
         std::chrono::time_point<std::chrono::system_clock> beginTime;
 
-        const tego_attachment_id_t id;
+        const tego_file_transfer_id_t id;
         const tego_file_size_t size;
         tego_file_size_t offset;
         std::ifstream stream;
@@ -98,7 +98,7 @@ private:
     struct incoming_transfer_record
 	{
         incoming_transfer_record(
-            tego_attachment_id_t id,
+            tego_file_transfer_id_t id,
             tego_file_size_t fileSize,
             const std::string& fileHash);
         // explicit destructor defined, so we need to explicitly define a move constructor
@@ -109,7 +109,7 @@ private:
 
         std::chrono::time_point<std::chrono::system_clock> beginTime;
 
-        const tego_attachment_id_t id;
+        const tego_file_transfer_id_t id;
         const tego_file_size_t size;
         std::string dest; // destination to save to
         const std::string hash;
@@ -128,15 +128,15 @@ private:
     char chunkBuffer[FileMaxChunkSize];
 
     // file transfers we are sending
-    std::map<tego_attachment_id_t, outgoing_transfer_record> outgoingTransfers;
+    std::map<tego_file_transfer_id_t, outgoing_transfer_record> outgoingTransfers;
     // file transfers we are receiving
-    std::map<tego_attachment_id_t, incoming_transfer_record> incomingTransfers;
+    std::map<tego_file_transfer_id_t, incoming_transfer_record> incomingTransfers;
 
     // called when something unrecoverable occurs, or contact is sending us bad packets, or we get in
     // some other allegedly impossible state; kills all our transfers and disconnect the channel
-    void emitFatalError(std::string&& msg, tego_attachment_result_t error, bool shouldCloseChannel);
+    void emitFatalError(std::string&& msg, tego_file_transfer_result_t error, bool shouldCloseChannel);
     // called when some error occurs that does not affect other transfers
-    void emitNonFatalError(std::string&& msg, tego_attachment_id_t id, tego_attachment_result_t error);
+    void emitNonFatalError(std::string&& msg, tego_file_transfer_id_t id, tego_file_transfer_result_t error);
 
     void handleFileHeader(const Data::File::FileHeader &message);
     void handleFileHeaderAck(const Data::File::FileHeaderAck &message);
@@ -145,7 +145,7 @@ private:
     void handleFileChunkAck(const Data::File::FileChunkAck &message);
     void handleFileTransferCompleteNotification(const Data::File::FileTransferCompleteNotification &message);
 
-    void sendNextChunk(tego_attachment_id_t id);
+    void sendNextChunk(tego_file_transfer_id_t id);
 };
 
 }

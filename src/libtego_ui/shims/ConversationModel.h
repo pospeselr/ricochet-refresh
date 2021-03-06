@@ -73,17 +73,17 @@ namespace shims
         Q_INVOKABLE void resetUnreadCount();
 
         void sendFile();
-        // cancelAttachmentTransfer neeeds to use a Qt type since it is invokable from QML
-        static_assert(std::is_same_v<quint32, tego_attachment_id_t>);
-        Q_INVOKABLE void tryAcceptAttachmentTransfer(quint32 attachmentId);
-        Q_INVOKABLE void cancelAttachmentTransfer(quint32 attachmentId);
-        Q_INVOKABLE void rejectAttachmentTransfer(quint32 attachmentId);
+        // invokable function neeeds to use a Qt type since it is invokable from QML
+        static_assert(std::is_same_v<quint32, tego_file_transfer_id_t>);
+        Q_INVOKABLE void tryAcceptFileTransfer(quint32 id);
+        Q_INVOKABLE void cancelFileTransfer(quint32 id);
+        Q_INVOKABLE void rejectFileTransfer(quint32 id);
 
-        void attachmentRequestReceived(tego_attachment_id_t attachmentId, QString fileName, QString fileHash, quint64 fileSize);
-        void attachmentRequestAcknowledged(tego_attachment_id_t attachmentId, bool accepted);
-        void attachmentRequestResponded(tego_attachment_id_t attachmentId, tego_attachment_response_t response);
-        void attachmentRequestProgressUpdated(tego_attachment_id_t attachmentId, quint64 bytesTransferred);
-        void attachmentRequestCompleted(tego_attachment_id_t attachmentId, tego_attachment_result_t result);
+        void fileTransferRequestReceived(tego_file_transfer_id_t id, QString fileName, QString fileHash, quint64 fileSize);
+        void fileTransferRequestAcknowledged(tego_file_transfer_id_t id, bool accepted);
+        void fileTransferRequestResponded(tego_file_transfer_id_t id, tego_file_transfer_response_t response);
+        void fileTransferRequestProgressUpdated(tego_file_transfer_id_t id, quint64 bytesTransferred);
+        void fileTransferRequestCompleted(tego_file_transfer_id_t id, tego_file_transfer_result_t result);
 
         void messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text);
         void messageAcknowledged(tego_message_id_t messageId, bool accepted);
@@ -105,7 +105,7 @@ namespace shims
             MessageDataType type = InvalidMessage;
             QString text = {};
             QDateTime time = {};
-            static_assert(std::is_same_v<quint32, tego_attachment_id_t>);
+            static_assert(std::is_same_v<quint32, tego_file_transfer_id_t>);
             static_assert(std::is_same_v<quint32, tego_message_id_t>);
             quint32 identifier = 0;
             MessageStatus status = None;

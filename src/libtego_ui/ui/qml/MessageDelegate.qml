@@ -210,7 +210,7 @@ Column {
                         text: "⬇"
 
                         onClicked: {
-                            contact.conversation.tryAcceptAttachmentTransfer(model.transfer.id);
+                            contact.conversation.tryAcceptFileTransfer(model.transfer.id);
                         }
                     }
 
@@ -225,9 +225,9 @@ Column {
 
                         onClicked: {
                             if (acceptButton.visible)
-                                contact.conversation.rejectAttachmentTransfer(model.transfer.id);
+                                contact.conversation.rejectFileTransfer(model.transfer.id);
                             else
-                                contact.conversation.cancelAttachmentTransfer(model.transfer.id);
+                                contact.conversation.cancelFileTransfer(model.transfer.id);
                         }
                     }
                 }

@@ -439,50 +439,34 @@ namespace
         });
     }
 
-    void on_attachment_request_received(
+    void on_file_transfer_request_received(
         tego_context_t* context,
         tego_user_id_t const* sender,
-        tego_attachment_id_t attachmentId,
-        char const* attachmentName,
-        size_t attachmentNameLength,
-        uint64_t attachmentSize,
+        tego_file_transfer_id_t id,
+        char const* fileName,
+        size_t fileNameLength,
+        uint64_t fileSize,
         tego_file_hash_t const* fileHash)
     {
-
-        auto hashSize = tego_file_hash_string_size(fileHash, tego::throw_on_error());
-        std::string hashStr(hashSize, (char)0);
-        tego_file_hash_to_string(fileHash, hashStr.data(), hashStr.size(), tego::throw_on_error());
-
-        logger::println(
-            "Received attachment request {{ attachmentId : {}, attachmentName : {}, attachmentSize : {}, attachmentHash : {} }}",
-            attachmentId,
-            attachmentName,
-            attachmentSize,
-            hashStr);
-
-        // we have to call acknowledge on the UI thread, and so we have to marshall over some stuffs >:[
-
-        // sender
         auto contactId = tegoUserIdToContactId(sender);
+        QString fileNameCopy = QString::fromUtf8(fileName, fileNameLength);
+        auto hashStr = tego::to_string(fileHash);
 
-        // attachment name
-        QString attachmentNameCopy = QString::fromUtf8(attachmentName, attachmentNameLength);
-
-        push_task([=,attachmentName=std::move(attachmentNameCopy)]() -> void
+        push_task([=,fileName=std::move(fileNameCopy)]() -> void
         {
             auto contactUser = contactUserFromContactId(contactId);
             Q_ASSERT(contactUser != nullptr);
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            conversationModel->attachmentRequestReceived(attachmentId, attachmentName, QString::fromStdString(hashStr), attachmentSize);
+            conversationModel->fileTransferRequestReceived(id, fileName, QString::fromStdString(hashStr), fileSize);
         });
     }
 
-    void on_attachment_request_acknowledged(
+    void on_file_transfer_request_acknowledged(
         tego_context_t* context,
         tego_user_id_t const* receiver,
-        tego_attachment_id_t attachmentId,
+        tego_file_transfer_id_t id,
         tego_bool_t ack)
     {
         auto contactId = tegoUserIdToContactId(receiver);
@@ -494,15 +478,15 @@ namespace
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            conversationModel->attachmentRequestAcknowledged(attachmentId, ack);
+            conversationModel->fileTransferRequestAcknowledged(id, ack);
         });
     }
 
-    void on_attachment_request_response_received(
+    void on_file_transfer_request_response_received(
         tego_context_t* context,
         tego_user_id_t const* receiver,
-        tego_attachment_id_t attachmentId,
-        tego_attachment_response_t response)
+        tego_file_transfer_id_t id,
+        tego_file_transfer_response_t response)
     {
         auto contactId = tegoUserIdToContactId(receiver);
 
@@ -513,15 +497,15 @@ namespace
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            conversationModel->attachmentRequestResponded(attachmentId, response);
+            conversationModel->fileTransferRequestResponded(id, response);
         });
     }
 
-    void on_attachment_progress(
+    void on_file_transfer_progress(
         tego_context_t* context,
         const tego_user_id_t* userId,
-        tego_attachment_id_t attachmentId,
-        tego_attachment_direction_t direction,
+        tego_file_transfer_id_t id,
+        tego_file_transfer_direction_t direction,
         uint64_t bytesComplete,
         uint64_t bytesTotal)
     {
@@ -534,24 +518,24 @@ namespace
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            conversationModel->attachmentRequestProgressUpdated(attachmentId, bytesComplete);
+            conversationModel->fileTransferRequestProgressUpdated(id, bytesComplete);
         });
 
 
         logger::println(
             "File Progress id : {}, direction : {}, transferred : {} bytes, total : {} bytes",
-            attachmentId,
-            direction == tego_attachment_direction_sending ? "sending" : "receiving",
+            id,
+            direction == tego_file_transfer_direction_sending ? "sending" : "receiving",
             bytesComplete,
             bytesTotal);
     }
 
-    void on_attachment_complete(
+    void on_file_transfer_complete(
         tego_context_t* context,
         const tego_user_id_t* userId,
-        tego_attachment_id_t attachmentId,
-        tego_attachment_direction_t direction,
-        tego_attachment_result_t result)
+        tego_file_transfer_id_t id,
+        tego_file_transfer_direction_t direction,
+        tego_file_transfer_result_t result)
     {
         auto contactId = tegoUserIdToContactId(userId);
 
@@ -562,7 +546,7 @@ namespace
             auto conversationModel = contactUser->conversation();
             Q_ASSERT(conversationModel != nullptr);
 
-            conversationModel->attachmentRequestCompleted(attachmentId, result);
+            conversationModel->fileTransferRequestCompleted(id, result);
         });
     }
 
@@ -647,29 +631,29 @@ void init_libtego_callbacks(tego_context_t* context)
         &on_chat_request_response_received,
         tego::throw_on_error());
 
-    tego_context_set_attachment_request_received_callback(
+    tego_context_set_file_transfer_request_received_callback(
         context,
-        &on_attachment_request_received,
+        &on_file_transfer_request_received,
         tego::throw_on_error());
 
-    tego_context_set_attachment_request_acknowledged_callback(
+    tego_context_set_file_transfer_request_acknowledged_callback(
         context,
-        &on_attachment_request_acknowledged,
+        &on_file_transfer_request_acknowledged,
         tego::throw_on_error());
 
-    tego_context_set_attachment_request_response_received_callback(
+    tego_context_set_file_transfer_request_response_received_callback(
         context,
-        &on_attachment_request_response_received,
+        &on_file_transfer_request_response_received,
         tego::throw_on_error());
 
-    tego_context_set_attachment_progress_callback(
+    tego_context_set_file_transfer_progress_callback(
         context,
-        &on_attachment_progress,
+        &on_file_transfer_progress,
         tego::throw_on_error());
 
-    tego_context_set_attachment_complete_callback(
+    tego_context_set_file_transfer_complete_callback(
         context,
-        &on_attachment_complete,
+        &on_file_transfer_complete,
         tego::throw_on_error());
 
     tego_context_set_user_status_changed_callback(

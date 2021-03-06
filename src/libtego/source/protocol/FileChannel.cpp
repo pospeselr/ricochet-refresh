@@ -57,7 +57,7 @@ static void logTransferStats(qint64 bytes, std::chrono::time_point<std::chrono::
 //
 
 FileChannel::outgoing_transfer_record::outgoing_transfer_record(
-    tego_attachment_id_t id,
+    tego_file_transfer_id_t id,
     const std::string& filePath,
     tego_file_size_t fileSize)
 : id(id)
@@ -71,7 +71,7 @@ FileChannel::outgoing_transfer_record::outgoing_transfer_record(
 //
 
 FileChannel::incoming_transfer_record::incoming_transfer_record(
-    tego_attachment_id_t id,
+    tego_file_transfer_id_t id,
     tego_file_size_t fileSize,
     const std::string& fileHash)
 : id(id)
@@ -158,7 +158,7 @@ void FileChannel::receivePacket(const QByteArray &packet)
 {
     Data::File::Packet message;
     if (!message.ParseFromArray(packet.constData(), packet.size())) {
-        emitFatalError("Failed to parse message on file channel", tego_attachment_result_failure, true);
+        emitFatalError("Failed to parse message on file channel", tego_file_transfer_result_failure, true);
         return;
     }
 
@@ -175,7 +175,7 @@ void FileChannel::receivePacket(const QByteArray &packet)
     } else if (message.has_file_transfer_complete_notification()) {
         handleFileTransferCompleteNotification(message.file_transfer_complete_notification());
     } else {
-        emitFatalError("Unrecognized file packet on FileChannel", tego_attachment_result_failure, true);
+        emitFatalError("Unrecognized file packet on FileChannel", tego_file_transfer_result_failure, true);
     }
 }
 
@@ -183,14 +183,14 @@ void FileChannel::onConnectionClosed()
 {
     // we do not need to close the channel here because our owning Connection
     // will already do so, from ConnectionPrivate::socketDisconnected
-    this->emitFatalError("Connection Closed", tego_attachment_result_network_error, false);
+    this->emitFatalError("Connection Closed", tego_file_transfer_result_network_error, false);
 }
 
 //
 // Error Handling
 //
 
-void FileChannel::emitFatalError(std::string&& message, tego_attachment_result_t error, bool shouldCloseChannel)
+void FileChannel::emitFatalError(std::string&& message, tego_file_transfer_result_t error, bool shouldCloseChannel)
 {
     qWarning() << message.data();
 
@@ -200,14 +200,14 @@ void FileChannel::emitFatalError(std::string&& message, tego_attachment_result_t
     case Inbound:
         for(const auto& [id, itr] : incomingTransfers)
         {
-            emit this->fileTransferFinished(id, tego_attachment_direction_receiving, error);
+            emit this->fileTransferFinished(id, tego_file_transfer_direction_receiving, error);
         }
         incomingTransfers.clear();
         break;
     case Outbound:
         for(const auto& [id, itr] : outgoingTransfers)
         {
-            emit this->fileTransferFinished(id, tego_attachment_direction_sending, error);
+            emit this->fileTransferFinished(id, tego_file_transfer_direction_sending, error);
         }
         outgoingTransfers.clear();
         break;
@@ -222,7 +222,7 @@ void FileChannel::emitFatalError(std::string&& message, tego_attachment_result_t
     }
 }
 
-void FileChannel::emitNonFatalError(std::string&& message, tego_attachment_id_t id, tego_attachment_result_t error)
+void FileChannel::emitNonFatalError(std::string&& message, tego_file_transfer_id_t id, tego_file_transfer_result_t error)
 {
     // log error message to console
     qWarning() << message.data();
@@ -233,19 +233,19 @@ void FileChannel::emitNonFatalError(std::string&& message, tego_attachment_id_t 
     case Inbound:
         if (auto it = incomingTransfers.find(id); it != incomingTransfers.end())
         {
-            emit this->fileTransferFinished(id, tego_attachment_direction_receiving, error);
+            emit this->fileTransferFinished(id, tego_file_transfer_direction_receiving, error);
             incomingTransfers.erase(it);
         }
         break;
     case Outbound:
         if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
         {
-            emit this->fileTransferFinished(id, tego_attachment_direction_sending, error);
+            emit this->fileTransferFinished(id, tego_file_transfer_direction_sending, error);
             outgoingTransfers.erase(it);
         }
         break;
     default:
-        emitFatalError(fmt::format("Unknown FileChannel::direction()", direction), tego_attachment_result_failure, true);
+        emitFatalError(fmt::format("Unknown FileChannel::direction()", direction), tego_file_transfer_result_failure, true);
         break;
     }
 }
@@ -255,9 +255,9 @@ template<typename S>
 consteval static bool has_compatible_file_id()
 {
     typedef decltype(S().file_id()) file_id_t;
-    return std::numeric_limits<tego_attachment_id_t>::max() == std::numeric_limits<file_id_t>::max() &&
-           std::numeric_limits<tego_attachment_id_t>::min() == std::numeric_limits<file_id_t>::min() &&
-           std::is_signed_v<tego_attachment_id_t> == std::is_signed_v<file_id_t>;
+    return std::numeric_limits<tego_file_transfer_id_t>::max() == std::numeric_limits<file_id_t>::max() &&
+           std::numeric_limits<tego_file_transfer_id_t>::min() == std::numeric_limits<file_id_t>::min() &&
+           std::is_signed_v<tego_file_transfer_id_t> == std::is_signed_v<file_id_t>;
 }
 
 static_assert(has_compatible_file_id<Data::File::FileHeader>());
@@ -342,7 +342,7 @@ void FileChannel::handleFileHeaderAck(const Data::File::FileHeaderAck &message)
 void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse &message)
 {
     if (direction() != Outbound) {
-        emitFatalError("Rejected FileHeaderResponse message on inbound file channel", tego_attachment_result_failure, true);
+        emitFatalError("Rejected FileHeaderResponse message on inbound file channel", tego_file_transfer_result_failure, true);
         return;
     }
 
@@ -358,19 +358,19 @@ void FileChannel::handleFileHeaderResponse(const Data::File::FileHeaderResponse 
     }
 
     const auto response = message.response();
-    emit this->fileTransferRequestResponded(message.file_id(), static_cast<tego_attachment_response_t>(response));
+    emit this->fileTransferRequestResponded(message.file_id(), static_cast<tego_file_transfer_response_t>(response));
 
-    if (response == tego_attachment_response_accept)
+    if (response == tego_file_transfer_response_accept)
     {
         sendNextChunk(id);
         it->second.beginTime = std::chrono::system_clock::now();
     }
     else
     {
-        if (response != tego_attachment_response_reject)
+        if (response != tego_file_transfer_response_reject)
         {
             // this can never happen kill connection if we receive invalid value here
-            emitFatalError("Received invalid FileHeaderResponse", tego_attachment_result_failure, true);
+            emitFatalError("Received invalid FileHeaderResponse", tego_file_transfer_result_failure, true);
             return;
         }
         // receiver rejected our transfer request, so erase it from our records
@@ -382,7 +382,7 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
 {
     if (direction() != Inbound)
     {
-        emitFatalError("Rejected FileChunk message on outbound file channel", tego_attachment_result_failure, true);
+        emitFatalError("Rejected FileChunk message on outbound file channel", tego_file_transfer_result_failure, true);
         return;
     }
 
@@ -397,7 +397,7 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
     else if (message.chunk_data().size() > FileMaxChunkSize)
     {
         // something is very wrong in this case
-        emitFatalError("Rejected FileChunk because of invalid chunk_data() size", tego_attachment_result_failure, true);
+        emitFatalError("Rejected FileChunk because of invalid chunk_data() size", tego_file_transfer_result_failure, true);
         return;
     }
     else
@@ -407,17 +407,17 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
         itr.stream.write(chunk_data.data(), chunk_data.size());
 
         // emit progress callback
-        const auto fileId = message.file_id();
+        const auto id = message.file_id();
         const auto streamOffset = static_cast<std::streamoff>(itr.stream.tellg());
         if (streamOffset == std::streamoff(-1))
         {
             // we should send complete message to sender if we have a disk error so they do not spam us with chunks
             // we can't do anything with; this transfer is not recoverable, but others can continue
-            emitNonFatalError("Error writing chunk to stream", fileId, tego_attachment_result_filesystem_error);
+            emitNonFatalError("Error writing chunk to stream", id, tego_file_transfer_result_filesystem_error);
 
             // send message to transfer partner to let them know we've given up
             auto notification = std::make_unique<Data::File::FileTransferCompleteNotification>();
-            notification->set_file_id(fileId);
+            notification->set_file_id(id);
             notification->set_result(Protocol::Data::File::Cancelled);
 
             Data::File::Packet packet;
@@ -430,7 +430,7 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
         const auto bytesWritten = static_cast<tego_file_size_t>(streamOffset);
         const auto& bytesTotal = itr.size;
 
-        emit this->fileTransferProgress(fileId, tego_attachment_direction_receiving, bytesWritten, bytesTotal);
+        emit this->fileTransferProgress(id, tego_file_transfer_direction_receiving, bytesWritten, bytesTotal);
 
         auto response = std::make_unique<Data::File::FileChunkAck>();
         response->set_file_id(message.file_id());
@@ -451,7 +451,7 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
             {
                 // delete file if calculated hash doesn't match expected
                 QFile::remove(QString::fromStdString(itr.partial_dest()));
-                emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_bad_hash);
+                emit this->fileTransferFinished(id, tego_file_transfer_direction_receiving, tego_file_transfer_result_bad_hash);
             }
             else
             {
@@ -466,19 +466,19 @@ void FileChannel::handleFileChunk(const Data::File::FileChunk &message)
                 const auto qPartialDest = QString::fromStdString(itr.partial_dest());
                 if(QFile::rename(qPartialDest, qDest))
                 {
-                    emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_success);
+                    emit this->fileTransferFinished(id, tego_file_transfer_direction_receiving, tego_file_transfer_result_success);
                     logTransferStats(itr.size, itr.beginTime);
                 }
                 else
                 {
-                    emit this->fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_filesystem_error);
+                    emit this->fileTransferFinished(id, tego_file_transfer_direction_receiving, tego_file_transfer_result_filesystem_error);
                 }
             }
             incomingTransfers.erase(it);
 
             // send complete notification to remote user
             auto notification = std::make_unique<Data::File::FileTransferCompleteNotification>();
-            notification->set_file_id(fileId);
+            notification->set_file_id(id);
             notification->set_result(Protocol::Data::File::Success);
 
             Data::File::Packet packet;
@@ -492,7 +492,7 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
 {
     if (direction() != Outbound)
     {
-        emitFatalError("Rejected FileChunkAck message on incoming file channel", tego_attachment_result_failure, true);
+        emitFatalError("Rejected FileChunkAck message on incoming file channel", tego_file_transfer_result_failure, true);
         return;
     }
 
@@ -514,11 +514,11 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     {
         // acks currently always come between sending chunks, so our bytes sent and their bytes received should
         // not diverge
-        emitFatalError("mismatch between bytes we have sent and the bytes the receiver claims to have received", tego_attachment_result_failure, true);
+        emitFatalError("mismatch between bytes we have sent and the bytes the receiver claims to have received", tego_file_transfer_result_failure, true);
         return;
     }
 
-    emit this->fileTransferProgress(otr.id, tego_attachment_direction_receiving, otr.offset, otr.size);
+    emit this->fileTransferProgress(otr.id, tego_file_transfer_direction_receiving, otr.offset, otr.size);
 
     // send the next chunk until we are done
     if(otr.offset < otr.size)
@@ -527,23 +527,23 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
     }
 }
 
-// statically verify that our tego_attachment_result_t enum matches the FileTransferResult enum
+// statically verify that our tego_file_transfer_result_t enum matches the FileTransferResult enum
 typedef std::underlying_type_t<Protocol::Data::File::FileTransferResult> file_transfer_result_underlying_t;
-static_assert(std::is_same_v<std::underlying_type_t<Protocol::Data::File::FileTransferResult>, std::underlying_type_t<tego_attachment_result_t>>);
+static_assert(std::is_same_v<std::underlying_type_t<Protocol::Data::File::FileTransferResult>, std::underlying_type_t<tego_file_transfer_result_t>>);
 
-constexpr bool operator==(Protocol::Data::File::FileTransferResult left, tego_attachment_result_t right)
+constexpr bool operator==(Protocol::Data::File::FileTransferResult left, tego_file_transfer_result_t right)
 {
     return static_cast<file_transfer_result_underlying_t>(left) == static_cast<file_transfer_result_underlying_t>(right);
 }
 
-constexpr bool operator==(tego_attachment_result_t left, Protocol::Data::File::FileTransferResult right)
+constexpr bool operator==(tego_file_transfer_result_t left, Protocol::Data::File::FileTransferResult right)
 {
     return right == left;
 }
 
-static_assert(Protocol::Data::File::Success == tego_attachment_result_success);
-static_assert(Protocol::Data::File::Cancelled == tego_attachment_result_cancelled);
-static_assert(Protocol::Data::File::Failure == tego_attachment_result_failure);
+static_assert(Protocol::Data::File::Success == tego_file_transfer_result_success);
+static_assert(Protocol::Data::File::Cancelled == tego_file_transfer_result_cancelled);
+static_assert(Protocol::Data::File::Failure == tego_file_transfer_result_failure);
 
 void FileChannel::handleFileTransferCompleteNotification(const Data::File::FileTransferCompleteNotification &message)
 {
@@ -557,7 +557,7 @@ void FileChannel::handleFileTransferCompleteNotification(const Data::File::FileT
         if( auto it = incomingTransfers.find(id); it != incomingTransfers.end())
         {
             incomingTransfers.erase(it);
-            emit fileTransferFinished(id, tego_attachment_direction_receiving, static_cast<tego_attachment_result_t>(message.result()));
+            emit fileTransferFinished(id, tego_file_transfer_direction_receiving, static_cast<tego_file_transfer_result_t>(message.result()));
             return;
         }
         break;
@@ -565,13 +565,13 @@ void FileChannel::handleFileTransferCompleteNotification(const Data::File::FileT
         if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
         {
             const auto& otr = it->second;
-            if (message.result() == tego_attachment_result_success)
+            if (message.result() == tego_file_transfer_result_success)
             {
                 logTransferStats(otr.size, otr.beginTime);
             }
 
             outgoingTransfers.erase(it);
-            emit fileTransferFinished(id, tego_attachment_direction_sending, static_cast<tego_attachment_result_t>(message.result()));
+            emit fileTransferFinished(id, tego_file_transfer_direction_sending, static_cast<tego_file_transfer_result_t>(message.result()));
             return;
         }
     default:
@@ -584,7 +584,7 @@ void FileChannel::handleFileTransferCompleteNotification(const Data::File::FileT
 bool FileChannel::sendFileWithId(QString file_uri,
                                  tego_file_hash_t const& file_hash,
                                  QDateTime,
-                                 tego_attachment_id_t file_id)
+                                 tego_file_transfer_id_t file_id)
 {
     Q_ASSERT(direction() == Outbound);
     Q_ASSERT(!outgoingTransfers.contains(file_id));
@@ -645,9 +645,9 @@ bool FileChannel::sendFileWithId(QString file_uri,
     return true;
 }
 
-void FileChannel::acceptFile(tego_attachment_id_t fileId, const std::string& dest)
+void FileChannel::acceptFile(tego_file_transfer_id_t id, const std::string& dest)
 {
-    auto it = incomingTransfers.find(fileId);
+    auto it = incomingTransfers.find(id);
     TEGO_THROW_IF_FALSE(it != incomingTransfers.end());
     auto& itr = it->second;
 
@@ -655,44 +655,44 @@ void FileChannel::acceptFile(tego_attachment_id_t fileId, const std::string& des
     itr.open_stream(dest);
 
     auto response = std::make_unique<Data::File::FileHeaderResponse>();
-    response->set_response(tego_attachment_response_accept);
-    response->set_file_id(fileId);
+    response->set_response(tego_file_transfer_response_accept);
+    response->set_file_id(id);
 
     Data::File::Packet packet;
     packet.set_allocated_file_header_response(response.release());
     Channel::sendMessage(packet);
 
     // emit starting transfer progress callback
-    emit this->fileTransferProgress(fileId, tego_attachment_direction_receiving, 0, it->second.size);
+    emit this->fileTransferProgress(id, tego_file_transfer_direction_receiving, 0, it->second.size);
 }
 
-void FileChannel::rejectFile(tego_attachment_id_t fileId)
+void FileChannel::rejectFile(tego_file_transfer_id_t id)
 {
-    auto it = incomingTransfers.find(fileId);
+    auto it = incomingTransfers.find(id);
     TEGO_THROW_IF_FALSE(it != incomingTransfers.end());
 
     // remove the incoming_transfer_record from our list on reject
     incomingTransfers.erase(it);
 
     auto response = std::make_unique<Data::File::FileHeaderResponse>();
-    response->set_response(tego_attachment_response_reject);
-    response->set_file_id(fileId);
+    response->set_response(tego_file_transfer_response_reject);
+    response->set_file_id(id);
 
     Data::File::Packet packet;
     packet.set_allocated_file_header_response(response.release());
     Channel::sendMessage(packet);
 
     // emit completion callback
-    emit fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_rejected);
+    emit fileTransferFinished(id, tego_file_transfer_direction_receiving, tego_file_transfer_result_rejected);
 }
 
-bool FileChannel::cancelTransfer(tego_attachment_id_t fileId)
+bool FileChannel::cancelTransfer(tego_file_transfer_id_t id)
 {
     // verify the transfer exists in our system
     switch(direction())
     {
     case Inbound:
-        if (auto it = incomingTransfers.find(fileId); it != incomingTransfers.end())
+        if (auto it = incomingTransfers.find(id); it != incomingTransfers.end())
         {
             incomingTransfers.erase(it);
         }
@@ -702,7 +702,7 @@ bool FileChannel::cancelTransfer(tego_attachment_id_t fileId)
         }
         break;
     case Outbound:
-        if (auto it = outgoingTransfers.find(fileId); it != outgoingTransfers.end())
+        if (auto it = outgoingTransfers.find(id); it != outgoingTransfers.end())
         {
             outgoingTransfers.erase(it);
         }
@@ -717,19 +717,19 @@ bool FileChannel::cancelTransfer(tego_attachment_id_t fileId)
 
     // finally send cancel notification to remote user
     auto notification = std::make_unique<Data::File::FileTransferCompleteNotification>();
-    notification->set_file_id(fileId);
+    notification->set_file_id(id);
     notification->set_result(Protocol::Data::File::Cancelled);
 
     Data::File::Packet packet;
     packet.set_allocated_file_transfer_complete_notification(notification.release());
     Channel::sendMessage(packet);
 
-    emit fileTransferFinished(fileId, tego_attachment_direction_receiving, tego_attachment_result_cancelled);
+    emit fileTransferFinished(id, tego_file_transfer_direction_receiving, tego_file_transfer_result_cancelled);
 
     return true;
 }
 
-void FileChannel::sendNextChunk(tego_attachment_id_t id)
+void FileChannel::sendNextChunk(tego_file_transfer_id_t id)
 {
     Q_ASSERT(direction() == Outbound);
 
@@ -749,7 +749,7 @@ void FileChannel::sendNextChunk(tego_attachment_id_t id)
         if (chunkSize == std::numeric_limits<std::streamsize>::max())
         {
             // not quite a fatal error, but we need to cleanup this transfer
-            emitNonFatalError("Problem reading the next chunk from disk", id, tego_attachment_result_filesystem_error);
+            emitNonFatalError("Problem reading the next chunk from disk", id, tego_file_transfer_result_filesystem_error);
 
             // send message to transfer partner to let them know we've given up
             auto notification = std::make_unique<Data::File::FileTransferCompleteNotification>();
