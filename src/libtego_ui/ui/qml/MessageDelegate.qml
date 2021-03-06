@@ -169,7 +169,7 @@ Column {
                             width: parent.width
                             height: styleHelper.pointSize * 1.5
 
-                            text: model.transfer.file_name
+                            text: model.transfer ? model.transfer.file_name : ""
                             font.bold: true
                             font.pointSize: styleHelper.pointSize
                             elide: Text.ElideMiddle
@@ -181,10 +181,10 @@ Column {
                             width: parent.width
                             height: visible ? 8 : 0
 
-                            visible: model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress
+                            visible: model.transfer ? (model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress) : false
 
-                            indeterminate: model.transfer.status === ConversationModel.Pending
-                            value: model.transfer.progressPercent;
+                            indeterminate: model.transfer ? (model.transfer.status === ConversationModel.Pending) : true
+                            value: model.transfer ? model.transfer.progressPercent : 0
                         }
 
                         Label {
@@ -193,7 +193,7 @@ Column {
                             width: parent.width
                             height: styleHelper.pointSize * 1.5
 
-                            text: model.transfer.statusString
+                            text: model.transfer ? model.transfer.statusString : ""
                             font.pointSize: filename.font.pointSize * 0.8;
                             color: Qt.lighter(filename.color, 1.5)
                         }
@@ -202,7 +202,7 @@ Column {
                     Button {
                         id: acceptButton
 
-                        visible: model.transfer.status === ConversationModel.Pending && model.transfer.direction === ConversationModel.Downloading
+                        visible: model.transfer ? (model.transfer.status === ConversationModel.Pending && model.transfer.direction === ConversationModel.Downloading) : false
 
                         width: visible ? transferDisplay.height : 0
                         height: visible ? transferDisplay.height : 0
@@ -216,7 +216,7 @@ Column {
 
                     Button {
                         id: cancelButton
-                        visible: (model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress)
+                        visible: model.transfer ? (model.transfer.status === ConversationModel.Pending || model.transfer.status === ConversationModel.InProgress) : false
 
                         width: visible ? transferDisplay.height : 0
                         height: visible ? transferDisplay.height : 0
