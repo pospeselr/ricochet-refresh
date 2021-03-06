@@ -87,6 +87,4 @@ private:
     mutable std::string torVersion;
     mutable std::vector<std::string> torLogs;
     tego_host_user_state_t hostUserState = tego_host_user_state_unknown;
-
-
 };

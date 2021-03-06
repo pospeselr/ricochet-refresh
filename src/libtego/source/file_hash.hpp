@@ -15,7 +15,7 @@ struct tego_file_hash
     constexpr size_t string_size() const;
     const std::string& to_string() const;
 
-    // 512 bytes, 8 bits per byte
+    // 512 bits, 8 bits per byte
     constexpr static size_t SHA3_512_DIGEST_SIZE = 512 / 8;
     constexpr static size_t DIGEST_SIZE = SHA3_512_DIGEST_SIZE;
     // two chars per byte plus null terminator
