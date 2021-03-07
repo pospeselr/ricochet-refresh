@@ -40,6 +40,7 @@ using tego::g_globals;
 #include "protocol/ChatChannel.h"
 #include "protocol/FileChannel.h"
 #include "utils/SecureRNG.h"
+#include "utils/Useful.h"
 
 ConversationModel::ConversationModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -302,8 +303,7 @@ void ConversationModel::sendQueuedMessages()
                     }
                     break;
                 default:
-                    /* XXX: Should this be BUG()? */
-                    qWarning() << "Rejected invalid message type";
+                    TEGO_BUG() << "Rejected invalid message type";
                     break;
             };
 

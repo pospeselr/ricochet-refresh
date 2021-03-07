@@ -142,12 +142,12 @@ bool FileChannel::allowOutboundChannelRequest(
     Data::Control::OpenChannel*)
 {
     if (connection()->findChannel<FileChannel>(Channel::Outbound)) {
-        BUG() << "Rejecting outbound request for" << type() << "channel because one is already open on this connection";
+        TEGO_BUG() << "Rejecting outbound request for" << type() << "channel because one is already open on this connection";
         return false;
     }
 
     if (connection()->purpose() != Connection::Purpose::KnownContact) {
-        BUG() << "Rejecting outbound request for" << type() << "channel for connection with unexpected purpose" << int(connection()->purpose());
+        TEGO_BUG() << "Rejecting outbound request for" << type() << "channel for connection with unexpected purpose" << int(connection()->purpose());
         return false;
     }
 

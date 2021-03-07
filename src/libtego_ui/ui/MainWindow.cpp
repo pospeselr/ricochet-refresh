@@ -83,7 +83,7 @@ public:
 protected:
     virtual QNetworkReply *createRequest(Operation op, const QNetworkRequest &req, QIODevice *outgoingData = 0)
     {
-        BUG() << "QML attempted to load a network resource from" << req.url() << " - this is potentially an input sanitization flaw.";
+        TEGO_BUG() << "QML attempted to load a network resource from" << req.url() << " - this is potentially an input sanitization flaw.";
         return QNetworkAccessManager::createRequest(op, QNetworkRequest(), outgoingData);
     }
 };
