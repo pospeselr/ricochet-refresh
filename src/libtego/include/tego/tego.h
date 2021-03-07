@@ -825,7 +825,7 @@ typedef uint32_t tego_message_id_t;
 typedef uint32_t tego_file_transfer_id_t;
 // struct for file hash
 typedef struct tego_file_hash tego_file_hash_t;
-// intger type for file size
+// integer type for file size
 typedef uint64_t tego_file_size_t;
 
 /*
