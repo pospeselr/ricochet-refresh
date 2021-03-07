@@ -429,7 +429,7 @@ void ConversationModel::onContactStatusChanged()
     emit dataChanged(index(0, 0), index(rowCount()-1, 0), QVector<int>() << SectionRole);
 }
 
-void ConversationModel::onFileTransferRequestReceived(tego_file_transfer_id_t id, const QString& filename, size_t fileSize, tego_file_hash_t hash)
+void ConversationModel::onFileTransferRequestReceived(tego_file_transfer_id_t id, const QString& filename, tego_file_size_t fileSize, tego_file_hash_t hash)
 {
     // user id
     auto userId = this->contact()->toTegoUserId();

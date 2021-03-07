@@ -252,7 +252,7 @@ void FileChannel::emitNonFatalError(std::string&& message, tego_file_transfer_id
 
 // verify that all the file_id members are the right size
 template<typename S>
-consteval static bool has_compatible_file_id()
+constexpr static bool has_compatible_file_id()
 {
     typedef decltype(S().file_id()) file_id_t;
     return std::numeric_limits<tego_file_transfer_id_t>::max() == std::numeric_limits<file_id_t>::max() &&
@@ -528,9 +528,7 @@ void FileChannel::handleFileChunkAck(const Data::File::FileChunkAck &message)
 }
 
 // statically verify that our tego_file_transfer_result_t enum matches the FileTransferResult enum
-typedef std::underlying_type_t<Protocol::Data::File::FileTransferResult> file_transfer_result_underlying_t;
-static_assert(std::is_same_v<std::underlying_type_t<Protocol::Data::File::FileTransferResult>, std::underlying_type_t<tego_file_transfer_result_t>>);
-
+typedef int file_transfer_result_underlying_t;
 constexpr bool operator==(Protocol::Data::File::FileTransferResult left, tego_file_transfer_result_t right)
 {
     return static_cast<file_transfer_result_underlying_t>(left) == static_cast<file_transfer_result_underlying_t>(right);
