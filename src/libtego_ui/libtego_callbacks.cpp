@@ -440,7 +440,7 @@ namespace
     }
 
     void on_file_transfer_request_received(
-        tego_context_t* context,
+        tego_context_t*,
         tego_user_id_t const* sender,
         tego_file_transfer_id_t id,
         char const* fileName,
@@ -464,7 +464,7 @@ namespace
     }
 
     void on_file_transfer_request_acknowledged(
-        tego_context_t* context,
+        tego_context_t*,
         tego_user_id_t const* receiver,
         tego_file_transfer_id_t id,
         tego_bool_t ack)
@@ -483,7 +483,7 @@ namespace
     }
 
     void on_file_transfer_request_response_received(
-        tego_context_t* context,
+        tego_context_t*,
         tego_user_id_t const* receiver,
         tego_file_transfer_id_t id,
         tego_file_transfer_response_t response)
@@ -502,7 +502,7 @@ namespace
     }
 
     void on_file_transfer_progress(
-        tego_context_t* context,
+        tego_context_t*,
         const tego_user_id_t* userId,
         tego_file_transfer_id_t id,
         tego_file_transfer_direction_t direction,
@@ -531,10 +531,10 @@ namespace
     }
 
     void on_file_transfer_complete(
-        tego_context_t* context,
+        tego_context_t*,
         const tego_user_id_t* userId,
         tego_file_transfer_id_t id,
-        tego_file_transfer_direction_t direction,
+        tego_file_transfer_direction_t,
         tego_file_transfer_result_t result)
     {
         auto contactId = tegoUserIdToContactId(userId);
