@@ -71,12 +71,9 @@ public:
     BlockedNetworkAccessManager(QObject *parent)
         : QNetworkAccessManager(parent)
     {
-        /* Either of these is sufficient to cause any network request to fail.
-         * Both of them should be redundant, because createRequest below also
+        /* This will cause any network request to fail.
+         * This should be redundant, because createRequest below also
          * blackholes every request (and crashes for assert builds). */
-
-        /* XXX: setNetworkAccessible is deprecated */
-        setNetworkAccessible(QNetworkAccessManager::NotAccessible);
         setProxy(QNetworkProxy(QNetworkProxy::Socks5Proxy, QLatin1String("0.0.0.0"), 0));
     }
 
