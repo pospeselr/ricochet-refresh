@@ -154,11 +154,82 @@ bool FileChannel::allowOutboundChannelRequest(
     return true;
 }
 
+bool FileChannel::verifyPacket(Data::File::Packet const& message)
+{
+    // ensure the packet has only 1 of the possible file messages
+
+    auto messageCount = 0;
+    messageCount += message.has_file_header();
+    messageCount += message.has_file_header_ack();
+    messageCount += message.has_file_chunk();
+    messageCount += message.has_file_header_response();
+    messageCount += message.has_file_chunk_ack();
+    messageCount += message.has_file_transfer_complete_notification();
+
+    if (messageCount == 1)
+    {
+        if (message.has_file_header()) {
+            return verifyFileHeader(message.file_header());
+        } else if (message.has_file_header_ack()) {
+            return verifyFileHeaderAck(message.file_header_ack());
+        } else if (message.has_file_chunk()) {
+            return verifyFileChunk(message.file_chunk());
+        } else if (message.has_file_header_response()) {
+            return verifyFileHeaderResponse(message.file_header_response());
+        } else if (message.has_file_chunk_ack()) {
+            return verifyFileChunkAck(message.file_chunk_ack());
+        } else if (message.has_file_transfer_complete_notification()) {
+            return verifyFileTransferCompleteNotification(message.file_transfer_complete_notification());
+        }
+    }
+
+    return false;
+}
+
+bool FileChannel::verifyFileHeader(Data::File::FileHeader const& message)
+{
+    return message.has_file_id() &&
+           message.has_file_size() &&
+           message.has_name() &&
+           message.has_file_hash();
+}
+
+bool FileChannel::verifyFileHeaderAck(Data::File::FileHeaderAck const& message)
+{
+    return message.has_file_id() && message.has_accepted();
+}
+
+bool FileChannel::verifyFileHeaderResponse(Data::File::FileHeaderResponse const& message)
+{
+    return message.has_file_id() && message.has_response();
+}
+
+bool FileChannel::verifyFileChunk(Data::File::FileChunk const& message)
+{
+    return message.has_file_id() && message.has_chunk_data();
+}
+
+bool FileChannel::verifyFileChunkAck(Data::File::FileChunkAck const& message)
+{
+    return message.has_file_id() && message.has_bytes_received();
+}
+
+bool FileChannel::verifyFileTransferCompleteNotification(Data::File::FileTransferCompleteNotification const& message)
+{
+    return message.has_file_id() && message.has_result();
+}
+
 void FileChannel::receivePacket(const QByteArray &packet)
 {
     Data::File::Packet message;
     if (!message.ParseFromArray(packet.constData(), packet.size())) {
         emitFatalError("Failed to parse message on file channel", tego_file_transfer_result_failure, true);
+        return;
+    }
+
+    if (!verifyPacket(message))
+    {
+        emitFatalError("Failed to verify message on file channel", tego_file_transfer_result_failure, true);
         return;
     }
 

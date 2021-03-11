@@ -138,6 +138,14 @@ private:
     // called when some error occurs that does not affect other transfers
     void emitNonFatalError(std::string&& msg, tego_file_transfer_id_t id, tego_file_transfer_result_t error);
 
+    bool verifyPacket(Data::File::Packet const& message);
+    bool verifyFileHeader(Data::File::FileHeader const& message);
+    bool verifyFileHeaderAck(Data::File::FileHeaderAck const& message);
+    bool verifyFileHeaderResponse(Data::File::FileHeaderResponse const& message);
+    bool verifyFileChunk(Data::File::FileChunk const& message);
+    bool verifyFileChunkAck(Data::File::FileChunkAck const& message);
+    bool verifyFileTransferCompleteNotification(Data::File::FileTransferCompleteNotification const& message);
+
     void handleFileHeader(const Data::File::FileHeader &message);
     void handleFileHeaderAck(const Data::File::FileHeaderAck &message);
     void handleFileHeaderResponse(const Data::File::FileHeaderResponse &message);

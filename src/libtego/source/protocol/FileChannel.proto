@@ -44,29 +44,29 @@ message Packet {
 }
 
 message FileHeader {
-    required uint32 file_id = 1;
-    required uint64 file_size = 2;
-    required string name = 3;
-    required bytes file_hash = 4;
+    optional uint32 file_id = 1;
+    optional uint64 file_size = 2;
+    optional string name = 3;
+    optional bytes file_hash = 4;
 }
 
 message FileHeaderAck {
-    required uint32 file_id = 1;
-    required bool accepted = 2 [default = false];
+    optional uint32 file_id = 1;
+    optional bool accepted = 2 [default = false];
 }
 
 message FileHeaderResponse {
-    required uint32 file_id = 1;
-    required int32 response = 2;
+    optional uint32 file_id = 1;
+    optional int32 response = 2;
 }
 
 message FileChunk {
-    required uint32 file_id = 1;
-    required bytes chunk_data = 2;
+    optional uint32 file_id = 1;
+    optional bytes chunk_data = 2;
 }
 message FileChunkAck {
-    required uint32 file_id = 1;
-    required uint64 bytes_received = 2;
+    optional uint32 file_id = 1;
+    optional uint64 bytes_received = 2;
 }
 
 enum FileTransferResult {
@@ -76,6 +76,6 @@ enum FileTransferResult {
 }
 
 message FileTransferCompleteNotification {
-    required uint32 file_id = 1;
-    required FileTransferResult result = 2;
+    optional uint32 file_id = 1;
+    optional FileTransferResult result = 2;
 }
