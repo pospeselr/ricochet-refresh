@@ -445,7 +445,7 @@ namespace
         tego_file_transfer_id_t id,
         char const* fileName,
         size_t fileNameLength,
-        uint64_t fileSize,
+        tego_file_size_t fileSize,
         tego_file_hash_t const* fileHash)
     {
         auto contactId = tegoUserIdToContactId(sender);
@@ -506,8 +506,8 @@ namespace
         const tego_user_id_t* userId,
         tego_file_transfer_id_t id,
         tego_file_transfer_direction_t direction,
-        uint64_t bytesComplete,
-        uint64_t bytesTotal)
+        tego_file_size_t bytesComplete,
+        tego_file_size_t bytesTotal)
     {
         auto contactId = tegoUserIdToContactId(userId);
 
