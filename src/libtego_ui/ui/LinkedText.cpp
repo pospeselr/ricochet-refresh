@@ -46,6 +46,7 @@ LinkedText::LinkedText(QObject *parent)
 
 QString LinkedText::parsed(const QString &input)
 {
+    /*
     QString re;
     int p = 0;
     QRegularExpressionMatchIterator it = linkRegex.globalMatch(input);
@@ -67,6 +68,8 @@ QString LinkedText::parsed(const QString &input)
         re.append(input.mid(p).toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br/>")));
 
     return re;
+    */
+    return input.toHtmlEscaped();
 }
 
 void LinkedText::copyToClipboard(const QString &text)

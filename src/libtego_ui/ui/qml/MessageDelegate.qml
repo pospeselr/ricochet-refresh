@@ -104,6 +104,7 @@ Column {
             color: "transparent"
 
             // text message
+
             TextEdit {
                 id: textField
                 visible: parent.childItem === this
@@ -111,7 +112,7 @@ Column {
                 height: contentHeight
 
                 renderType: Text.NativeRendering
-                textFormat: TextEdit.RichText
+                textFormat: TextEdit.PlainText
                 selectionColor: palette.highlight
                 selectedTextColor: palette.highlightedText
                 font.pointSize: styleHelper.pointSize
@@ -119,25 +120,25 @@ Column {
                 wrapMode: TextEdit.Wrap
                 readOnly: true
                 selectByMouse: true
-                text: LinkedText.parsed(model.text)
+                text: model.text
 
-                onLinkActivated: {
-                    textField.deselect()
-                    delegate.showLinkLeftClickContextMenu(link)
-                }
+                // onLinkActivated: {
+                //     textField.deselect()
+                //     delegate.showLinkLeftClickContextMenu(link)
+                // }
 
-                // Workaround an incomplete fix for QTBUG-31646
-                Component.onCompleted: {
-                    if (textField.hasOwnProperty('linkHovered'))
-                        textField.linkHovered.connect(function() { })
-                }
+                // // Workaround an incomplete fix for QTBUG-31646
+                // Component.onCompleted: {
+                //     if (textField.hasOwnProperty('linkHovered'))
+                //         textField.linkHovered.connect(function() { })
+                // }
 
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.RightButton
+                // MouseArea {
+                //     anchors.fill: parent
+                //     acceptedButtons: Qt.RightButton
 
-                    onClicked: delegate.showContextMenu(parent.hoveredLink)
-                }
+                //     onClicked: delegate.showContextMenu(parent.hoveredLink)
+                // }
             }
 
             // sending file transfer
