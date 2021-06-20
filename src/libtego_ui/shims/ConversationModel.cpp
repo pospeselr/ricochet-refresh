@@ -111,6 +111,7 @@ namespace shims
                         switch(message.transferStatus)
                         {
                             case Pending: return tr("Pending");
+                            case Accepted: return tr("Accepted");
                             case Rejected: return tr("Rejected");
                             case InProgress:
                             {
@@ -210,6 +211,8 @@ namespace shims
         this->beginInsertRows(QModelIndex(), 0, 0);
         this->messages.prepend(std::move(md));
         this->endInsertRows();
+
+        this->addEventFromMessage(indexOfOutgoingMessage(messageId));
     }
 
     void ConversationModel::sendFile()
@@ -260,12 +263,160 @@ namespace shims
                 this->beginInsertRows(QModelIndex(), 0, 0);
                 this->messages.prepend(std::move(md));
                 this->endInsertRows();
+
+                this->addEventFromMessage(indexOfOutgoingMessage(id));
             }
             catch(const std::runtime_error& err)
             {
                 qWarning() << err.what();
             }
         }
+    }
+
+    void ConversationModel::deserializeTextMessageEventToFile(const EventData &event, std::ofstream &ofile) const
+    {
+        auto &md = this->messages[this->messages.size() - event.messageData.reverseIndex];
+        switch (md.status)
+        {
+            case Received:
+                fmt::print(ofile, "[{}] <{}>: {}\n",
+                                    md.time.toString().toStdString(),
+                                    this->contact()->getNickname().toStdString(),
+                                    md.text.toStdString()); break;
+            case Delivered:
+                fmt::print(ofile, "[{}] <{}>: {}\n",
+                                    md.time.toString().toStdString(),
+                                    tr("me").toStdString(),
+                                    md.text.toStdString()); break;
+            default:
+                // messages we sent that weren't delivered
+                fmt::print(ofile, "[{}] <{}> ({}): {}\n",
+                                    md.time.toString().toStdString(),
+                                    tr("me").toStdString(),
+                                    getMessageStatusString(md.status),
+                                    md.text.toStdString()); break;
+        }
+    }
+
+    void ConversationModel::deserializeTransferMessageEventToFile(const EventData &event, std::ofstream &ofile) const
+    {
+        auto &md = this->messages[this->messages.size() - event.transferData.reverseIndex];
+
+        if (md.transferDirection == InvalidDirection)
+            return;
+
+        std::string sender = md.transferDirection == Uploading
+                                    ? tr("me").toStdString()
+                                    : this->contact()->getNickname().toStdString();
+
+        switch (event.transferData.status)
+        {
+            case Pending:           //FALLTHROUGH
+            case Accepted:          //FALLTHROUGH
+            case Rejected:          //FALLTHROUGH
+            case Cancelled:         //FALLTHROUGH
+            case Finished:
+                fmt::print(ofile, "[{}] file '{}' from <{}> (hash: {}, size: {}): {}\n",
+                                    QDateTime::fromSecsSinceEpoch(event.transferData.timeSinceEpoch).toString().toStdString(),
+                                    md.fileName.toStdString(),
+                                    sender,
+                                    md.fileHash.toStdString().c_str(), // ugly hack because there's a trailing null byte for some reason
+                                    md.fileSize,
+                                    getTransferStatusString(event.transferData.status)); break;
+            case UnknownFailure:    //FALLTHROUGH
+            case BadFileHash:       //FALLTHROUGH
+            case NetworkError:      //FALLTHROUGH
+            case FileSystemError:
+                fmt::print(ofile, "[{}] file '{}' from <{}> (hash: {}, size: {}): Error: {}, bytes transferred: {}\n",
+                                    QDateTime::fromSecsSinceEpoch(event.transferData.timeSinceEpoch).toString().toStdString(),
+                                    md.fileName.toStdString(),
+                                    sender,
+                                    md.fileHash.toStdString().c_str(), // ugly hack because there's a trailing null byte for some reason
+                                    md.fileSize,
+                                    getTransferStatusString(event.transferData.status),
+                                    event.transferData.bytesTransferred); break;
+            default:
+                qWarning() << "Invalid transfer status in events";
+                break;
+        }
+    }
+
+    void ConversationModel::deserializeUserStatusUpdateEventToFile(const EventData &event, std::ofstream &ofile) const
+    {
+        if (event.userStatusData.target == UserTargetNone)
+            return;
+
+        std::string sender = event.userStatusData.target == UserTargetClient
+                                    ? tr("me").toStdString()
+                                    : this->contact()->getNickname().toStdString();
+
+        switch (event.userStatusData.status)
+        {
+            case ContactUser::Status::Online:
+                fmt::print(ofile, "[{}] <{}> is now online\n",
+                                    QDateTime::fromSecsSinceEpoch(event.userStatusData.timeSinceEpoch).toString().toStdString(),
+                                    this->contact()->getNickname().toStdString()); break;
+            case ContactUser::Status::Offline:
+                fmt::print(ofile, "[{}] <{}> is now offline\n",
+                                    QDateTime::fromSecsSinceEpoch(event.userStatusData.timeSinceEpoch).toString().toStdString(),
+                                    this->contact()->getNickname().toStdString()); break;
+            case ContactUser::Status::RequestPending:
+                fmt::print(ofile, "[{}] New contact request to <{}>\n",
+                                    QDateTime::fromSecsSinceEpoch(event.userStatusData.timeSinceEpoch).toString().toStdString(),
+                                    this->contact()->getNickname().toStdString()); break;
+            case ContactUser::Status::RequestRejected:
+                fmt::print(ofile, "[{}] Outgoing request to <{}> was rejected\n",
+                                    QDateTime::fromSecsSinceEpoch(event.userStatusData.timeSinceEpoch).toString().toStdString(),
+                                    this->contact()->getNickname().toStdString()); break;
+            default:
+                break;
+        }
+    }
+
+    void ConversationModel::deserializeEventToFile(const EventData &event, std::ofstream &ofile) const
+    {
+        switch (event.type)
+        {
+            case TextMessageEvent:
+                deserializeTextMessageEventToFile(event, ofile); break;
+            case TransferMessageEvent:
+                deserializeTransferMessageEventToFile(event, ofile); break;
+            case UserStatusUpdateEvent:
+                deserializeUserStatusUpdateEventToFile(event, ofile); break;
+            default:
+                qWarning() << "Unknown event type in events list";
+                break;
+        }
+    }
+
+    bool ConversationModel::exportConversation()
+    {
+        auto filePath = QFileDialog::getSaveFileName(nullptr,
+                                                        tr("Open File"), // todo: mind blanking - there's a word for file to export to
+                                                        QDir::homePath(),
+                                                        nullptr);
+
+        if (filePath.isEmpty() || this->events.isEmpty())
+            return false;
+
+        std::ofstream ofile(filePath.toStdString(), std::ios::out);
+        if (!ofile.is_open())
+        {
+            qWarning() << "Could not open file " << filePath;
+            return false;
+        }
+
+        fmt::print(ofile, "Conversation with {} (nick: {}) starting on {}\n", 
+                            this->contact()->getContactID().toStdString(),
+                            this->contact()->getNickname().toStdString(),
+                            this->messages.constFirst().time.toString());
+
+        foreach(auto &event, this->events)
+        {
+            deserializeEventToFile(event, ofile);
+        }
+
+        return true;
     }
 
     void ConversationModel::tryAcceptFileTransfer(quint32 id)
@@ -308,8 +459,9 @@ namespace shims
                 qWarning() << err.what();
             }
 
-            data.transferStatus = Pending;
+            data.transferStatus = Accepted;
             emitDataChanged(row);
+            this->addEventFromMessage(row);
         }
     }
 
@@ -328,6 +480,7 @@ namespace shims
         {
             data.transferStatus = Cancelled;
             emitDataChanged(row);
+            this->addEventFromMessage(row);
 
             auto userIdentity = shims::UserIdentity::userIdentity;
             auto context = userIdentity->getContext();
@@ -379,7 +532,9 @@ namespace shims
         }
 
         data.transferStatus = Rejected;
+
         emitDataChanged(row);
+        this->addEventFromMessage(row);
     }
 
     void ConversationModel::fileTransferRequestReceived(tego_file_transfer_id_t id, QString fileName, QString fileHash, quint64 fileSize)
@@ -401,6 +556,8 @@ namespace shims
         this->endInsertRows();
 
         this->setUnreadCount(this->unreadCount + 1);
+
+        this->addEventFromMessage(indexOfIncomingMessage(id));
     }
 
     void ConversationModel::fileTransferRequestAcknowledged(tego_file_transfer_id_t id, bool accepted)
@@ -410,6 +567,7 @@ namespace shims
 
         MessageData &data = messages[row];
         data.status = accepted ? Delivered : Error;
+
         emitDataChanged(row);
     }
 
@@ -422,7 +580,7 @@ namespace shims
         switch(response)
         {
             case tego_file_transfer_response_accept:
-                data.transferStatus = Pending;
+                data.transferStatus = Accepted;
                 break;
             case tego_file_transfer_response_reject:
                 data.transferStatus = Rejected;
@@ -432,6 +590,7 @@ namespace shims
         }
 
         emitDataChanged(row);
+        this->addEventFromMessage(row);
     }
 
     void ConversationModel::fileTransferRequestProgressUpdated(tego_file_transfer_id_t id, quint64 bytesTransferred)
@@ -482,21 +641,8 @@ namespace shims
                     break;
             }
             emitDataChanged(row);
+            this->addEventFromMessage(row);
         }
-    }
-
-    void ConversationModel::clear()
-    {
-        if (messages.isEmpty())
-        {
-            return;
-        }
-
-        beginRemoveRows(QModelIndex(), 0, messages.size()-1);
-        messages.clear();
-        endRemoveRows();
-
-        resetUnreadCount();
     }
 
     void ConversationModel::messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text)
@@ -513,6 +659,8 @@ namespace shims
         this->endInsertRows();
 
         this->setUnreadCount(this->unreadCount + 1);
+
+        this->addEventFromMessage(indexOfIncomingMessage(messageId));
     }
 
     void ConversationModel::messageAcknowledged(tego_message_id_t messageId, bool accepted)
@@ -523,6 +671,60 @@ namespace shims
         MessageData &data = messages[row];
         data.status = accepted ? Delivered : Error;
         emitDataChanged(row);
+    }
+
+    void ConversationModel::addEventFromMessage(int row)
+    {
+        EventData ed;
+
+        if (row < 0)
+            return;
+
+        auto &md = this->messages[row];
+        switch (md.type)
+        {
+            case TextMessage:
+                ed.type = TextMessageEvent;
+                ed.messageData.reverseIndex = this->messages.size() - row;
+                break;
+            case TransferMessage:
+                ed.type = TransferMessageEvent;
+                ed.transferData.reverseIndex = this->messages.size() - row;
+                ed.transferData.status = md.transferStatus;
+                ed.transferData.timeSinceEpoch = md.time.toSecsSinceEpoch();
+                ed.transferData.bytesTransferred = md.bytesTransferred;
+                break;
+            default:
+                return;
+        }
+
+        this->events.append(std::move(ed));
+    }
+
+    void ConversationModel::setStatus(ContactUser::Status status)
+    {
+        EventData ed;
+
+        ed.type = UserStatusUpdateEvent;
+        ed.userStatusData.timeSinceEpoch = QDateTime::currentDateTime().toSecsSinceEpoch();
+        ed.userStatusData.status = status;
+        ed.userStatusData.target = UserTargetPeer;
+
+        this->events.append(std::move(ed));
+    }
+
+    void ConversationModel::clear()
+    {
+        if (messages.isEmpty())
+        {
+            return;
+        }
+
+        beginRemoveRows(QModelIndex(), 0, messages.size()-1);
+        messages.clear();
+        endRemoveRows();
+
+        resetUnreadCount();
     }
 
     void ConversationModel::emitDataChanged(int row)
@@ -562,5 +764,40 @@ namespace shims
                 return i;
         }
         return -1;
+    }
+
+    const char* ConversationModel::getMessageStatusString(const MessageStatus status) const
+    {
+        constexpr static const char* statusList[] =
+        {
+            "None",
+            "Received",
+            "Queued",
+            "Sending",
+            "Delivered",
+            "Error"
+        };
+
+        return statusList[static_cast<size_t>(status)];
+    }
+
+    const char* ConversationModel::getTransferStatusString(const TransferStatus status) const
+    {
+        constexpr static const char* statusList[] =
+        {
+            "Invalid Transfer",
+            "Pending",
+            "Accepted",
+            "Rejected",
+            "In Progress",
+            "Cancelled",
+            "Finished",
+            "Unknown Failure",
+            "Bad File Hash",
+            "Network Error",
+            "Filesystem Error"
+        };
+
+        return statusList[static_cast<size_t>(status)];
     }
 }
