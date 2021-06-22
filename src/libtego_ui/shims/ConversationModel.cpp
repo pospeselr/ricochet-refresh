@@ -394,7 +394,7 @@ namespace shims
 
     bool ConversationModel::exportConversation()
     {
-        const auto proposedDest = QString("%1/%2-%3.log").arg(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)).arg(this->contact()->getNickname()).arg(this->messages.constFirst().time.toString(Qt::ISODate));
+        const auto proposedDest = QString("%1/%2-%3.log").arg(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)).arg(this->contact()->getNickname()).arg(this->events.constFirst().time.toString(Qt::ISODate));
 
         auto filePath = QFileDialog::getSaveFileName(nullptr,
                                                         tr("Save File"),
