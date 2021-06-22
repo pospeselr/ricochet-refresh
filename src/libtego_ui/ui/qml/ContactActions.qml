@@ -35,6 +35,10 @@ Item {
         contact.sendFile();
     }
 
+    function canExportConversation() {
+        return contact.conversation.conversationEventCount > 0;
+    }
+
     function exportConversation() {
         if (contact.exportConversation() != true) {
             exportConversationFailedDialog.visible = true;
@@ -82,7 +86,8 @@ Item {
         }
         MenuItem {
             //: Context menu command to initiate a chat log export, opens a system file dialog to export to
-            text: qsTr("Export Conversation")
+            enabled: canExportConversation()   // only enable if we have anything to export
+            text: qsTr("Export Conversation...")
             onTriggered: exportConversation()
         }
         MenuSeparator { }

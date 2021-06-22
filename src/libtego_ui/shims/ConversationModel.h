@@ -12,6 +12,7 @@ namespace shims
 
         Q_PROPERTY(shims::ContactUser* contact READ contact WRITE setContact NOTIFY contactChanged)
         Q_PROPERTY(int unreadCount READ getUnreadCount RESET resetUnreadCount NOTIFY unreadCountChanged)
+        Q_PROPERTY(int conversationEventCount READ getConversationEventCount NOTIFY conversationEventCountChanged)
     public:
         ConversationModel(QObject *parent = 0);
 
@@ -89,12 +90,15 @@ namespace shims
         Q_INVOKABLE void resetUnreadCount();
 
         void sendFile();
+        bool hasEventsToExport();
+        Q_INVOKABLE int getConversationEventCount() const { return this->events.size(); }
         bool exportConversation();
         // invokable function neeeds to use a Qt type since it is invokable from QML
         static_assert(std::is_same_v<quint32, tego_file_transfer_id_t>);
         Q_INVOKABLE void tryAcceptFileTransfer(quint32 id);
         Q_INVOKABLE void cancelFileTransfer(quint32 id);
         Q_INVOKABLE void rejectFileTransfer(quint32 id);
+
 
         void setStatus(ContactUser::Status status);
 
@@ -114,6 +118,7 @@ namespace shims
     signals:
         void contactChanged();
         void unreadCountChanged(int prevCount, int currentCount);
+        void conversationEventCountChanged();
     private:
         void setUnreadCount(int count);
 
@@ -148,20 +153,17 @@ namespace shims
                 struct {
                     size_t reverseIndex = 0;
                     TransferStatus status = InvalidTransfer;
-                    qint64 timeSinceEpoch = 0;
                     qint64 bytesTransferred = 0; // we care about this for when a transfer is cancelled midway 
                 } transferData;
                 struct {
                     ContactUser::Status status = ContactUser::Status::Offline;
                     UserStatusTarget target = UserTargetNone; // when the protocol is eventually fixed and users
                                                               // are notified of being blocked, this will be needed
-                    qint64 timeSinceEpoch = 0;
                 } userStatusData;
             };
+            QDateTime time = {};
 
-            EventData()
-            {
-            }
+            EventData() {}
         };
 
         QList<MessageData> messages;
@@ -182,7 +184,7 @@ namespace shims
         int indexOfOutgoingMessage(quint32 identifier) const;
         int indexOfIncomingMessage(quint32 identifier) const;
 
-        const char* getMessageStatusString(const MessageStatus status) const;
-        const char* getTransferStatusString(const TransferStatus status) const;
+        static const char* getMessageStatusString(const MessageStatus status);
+        static const char* getTransferStatusString(const TransferStatus status);
     };
 }

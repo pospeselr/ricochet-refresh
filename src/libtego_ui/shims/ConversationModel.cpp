@@ -211,7 +211,6 @@ namespace shims
         this->beginInsertRows(QModelIndex(), 0, 0);
         this->messages.prepend(std::move(md));
         this->endInsertRows();
-
         this->addEventFromMessage(indexOfOutgoingMessage(messageId));
     }
 
@@ -316,22 +315,22 @@ namespace shims
             case Rejected:          //FALLTHROUGH
             case Cancelled:         //FALLTHROUGH
             case Finished:
-                fmt::print(ofile, "[{}] file '{}' from <{}> (hash: {}, size: {}): {}\n",
-                                    QDateTime::fromSecsSinceEpoch(event.transferData.timeSinceEpoch).toString().toStdString(),
+                fmt::print(ofile, "[{}] file '{}' from <{}> (hash: {}, size: {:L} bytes): {}\n",
+                                    event.time.toString().toStdString(),
                                     md.fileName.toStdString(),
                                     sender,
-                                    md.fileHash.toStdString().c_str(), // ugly hack because there's a trailing null byte for some reason
+                                    md.fileHash.toStdString(),
                                     md.fileSize,
                                     getTransferStatusString(event.transferData.status)); break;
             case UnknownFailure:    //FALLTHROUGH
             case BadFileHash:       //FALLTHROUGH
             case NetworkError:      //FALLTHROUGH
             case FileSystemError:
-                fmt::print(ofile, "[{}] file '{}' from <{}> (hash: {}, size: {}): Error: {}, bytes transferred: {}\n",
-                                    QDateTime::fromSecsSinceEpoch(event.transferData.timeSinceEpoch).toString().toStdString(),
+                fmt::print(ofile, "[{}] file '{}' from <{}> (hash: {}, size: {:L} bytes): Error: {}, bytes transferred: {:L} bytes\n",
+                                    event.time.toString().toStdString(),
                                     md.fileName.toStdString(),
                                     sender,
-                                    md.fileHash.toStdString().c_str(), // ugly hack because there's a trailing null byte for some reason
+                                    md.fileHash.toStdString(),
                                     md.fileSize,
                                     getTransferStatusString(event.transferData.status),
                                     event.transferData.bytesTransferred); break;
@@ -354,19 +353,19 @@ namespace shims
         {
             case ContactUser::Status::Online:
                 fmt::print(ofile, "[{}] <{}> is now online\n",
-                                    QDateTime::fromSecsSinceEpoch(event.userStatusData.timeSinceEpoch).toString().toStdString(),
+                                    event.time.toString().toStdString(),
                                     this->contact()->getNickname().toStdString()); break;
             case ContactUser::Status::Offline:
                 fmt::print(ofile, "[{}] <{}> is now offline\n",
-                                    QDateTime::fromSecsSinceEpoch(event.userStatusData.timeSinceEpoch).toString().toStdString(),
+                                    event.time.toString().toStdString(),
                                     this->contact()->getNickname().toStdString()); break;
             case ContactUser::Status::RequestPending:
                 fmt::print(ofile, "[{}] New contact request to <{}>\n",
-                                    QDateTime::fromSecsSinceEpoch(event.userStatusData.timeSinceEpoch).toString().toStdString(),
+                                    event.time.toString().toStdString(),
                                     this->contact()->getNickname().toStdString()); break;
             case ContactUser::Status::RequestRejected:
                 fmt::print(ofile, "[{}] Outgoing request to <{}> was rejected\n",
-                                    QDateTime::fromSecsSinceEpoch(event.userStatusData.timeSinceEpoch).toString().toStdString(),
+                                    event.time.toString().toStdString(),
                                     this->contact()->getNickname().toStdString()); break;
             default:
                 break;
@@ -389,15 +388,21 @@ namespace shims
         }
     }
 
+    bool ConversationModel::hasEventsToExport() {
+        return events.size() > 0;
+    }
+
     bool ConversationModel::exportConversation()
     {
-        auto filePath = QFileDialog::getSaveFileName(nullptr,
-                                                        tr("Open File"), // todo: mind blanking - there's a word for file to export to
-                                                        QDir::homePath(),
-                                                        nullptr);
+        const auto proposedDest = QString("%1/%2-%3.log").arg(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)).arg(this->contact()->getNickname()).arg(this->messages.constFirst().time.toString(Qt::ISODate));
 
-        if (filePath.isEmpty() || this->events.isEmpty())
-            return false;
+        auto filePath = QFileDialog::getSaveFileName(nullptr,
+                                                        tr("Save File"),
+                                                        proposedDest,
+                                                        "Log files (*.log);;All files (*)");
+
+        if (filePath.isEmpty())
+            return true;
 
         std::ofstream ofile(filePath.toStdString(), std::ios::out);
         if (!ofile.is_open())
@@ -406,10 +411,9 @@ namespace shims
             return false;
         }
 
-        fmt::print(ofile, "Conversation with {} (nick: {}) starting on {}\n", 
-                            this->contact()->getContactID().toStdString(),
+        fmt::print(ofile, "Conversation with {} ({})\n",
                             this->contact()->getNickname().toStdString(),
-                            this->messages.constFirst().time.toString());
+                            this->contact()->getContactID().toStdString());
 
         foreach(auto &event, this->events)
         {
@@ -532,7 +536,6 @@ namespace shims
         }
 
         data.transferStatus = Rejected;
-
         emitDataChanged(row);
         this->addEventFromMessage(row);
     }
@@ -556,7 +559,6 @@ namespace shims
         this->endInsertRows();
 
         this->setUnreadCount(this->unreadCount + 1);
-
         this->addEventFromMessage(indexOfIncomingMessage(id));
     }
 
@@ -567,7 +569,6 @@ namespace shims
 
         MessageData &data = messages[row];
         data.status = accepted ? Delivered : Error;
-
         emitDataChanged(row);
     }
 
@@ -645,6 +646,20 @@ namespace shims
         }
     }
 
+    void ConversationModel::clear()
+    {
+        if (messages.isEmpty())
+        {
+            return;
+        }
+
+        beginRemoveRows(QModelIndex(), 0, messages.size()-1);
+        messages.clear();
+        endRemoveRows();
+
+        resetUnreadCount();
+    }
+
     void ConversationModel::messageReceived(tego_message_id_t messageId, QDateTime timestamp, const QString& text)
     {
         MessageData md;
@@ -659,7 +674,6 @@ namespace shims
         this->endInsertRows();
 
         this->setUnreadCount(this->unreadCount + 1);
-
         this->addEventFromMessage(indexOfIncomingMessage(messageId));
     }
 
@@ -686,19 +700,21 @@ namespace shims
             case TextMessage:
                 ed.type = TextMessageEvent;
                 ed.messageData.reverseIndex = this->messages.size() - row;
+                ed.time = md.time;
                 break;
             case TransferMessage:
                 ed.type = TransferMessageEvent;
                 ed.transferData.reverseIndex = this->messages.size() - row;
                 ed.transferData.status = md.transferStatus;
-                ed.transferData.timeSinceEpoch = md.time.toSecsSinceEpoch();
                 ed.transferData.bytesTransferred = md.bytesTransferred;
+                ed.time = md.time;
                 break;
             default:
                 return;
         }
 
         this->events.append(std::move(ed));
+        emit this->conversationEventCountChanged();
     }
 
     void ConversationModel::setStatus(ContactUser::Status status)
@@ -706,25 +722,12 @@ namespace shims
         EventData ed;
 
         ed.type = UserStatusUpdateEvent;
-        ed.userStatusData.timeSinceEpoch = QDateTime::currentDateTime().toSecsSinceEpoch();
         ed.userStatusData.status = status;
         ed.userStatusData.target = UserTargetPeer;
+        ed.time = QDateTime::currentDateTime();
 
         this->events.append(std::move(ed));
-    }
-
-    void ConversationModel::clear()
-    {
-        if (messages.isEmpty())
-        {
-            return;
-        }
-
-        beginRemoveRows(QModelIndex(), 0, messages.size()-1);
-        messages.clear();
-        endRemoveRows();
-
-        resetUnreadCount();
+        emit this->conversationEventCountChanged();
     }
 
     void ConversationModel::emitDataChanged(int row)
@@ -766,7 +769,7 @@ namespace shims
         return -1;
     }
 
-    const char* ConversationModel::getMessageStatusString(const MessageStatus status) const
+    const char* ConversationModel::getMessageStatusString(const MessageStatus status)
     {
         constexpr static const char* statusList[] =
         {
@@ -781,7 +784,7 @@ namespace shims
         return statusList[static_cast<size_t>(status)];
     }
 
-    const char* ConversationModel::getTransferStatusString(const TransferStatus status) const
+    const char* ConversationModel::getTransferStatusString(const TransferStatus status)
     {
         constexpr static const char* statusList[] =
         {

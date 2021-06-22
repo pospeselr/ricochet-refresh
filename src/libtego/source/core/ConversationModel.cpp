@@ -185,7 +185,6 @@ tego_message_id_t ConversationModel::sendMessage(const QString &text)
         return 0;
 
     MessageData message(Message, text, QDateTime::currentDateTime(), lastMessageId++, Queued);
-    message.type = ConversationModel::MessageType::Message;
 
     if (m_contact->connection())
     {
