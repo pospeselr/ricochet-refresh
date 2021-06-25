@@ -241,14 +241,18 @@ catch(std::exception& re)
 }
 
 #ifdef Q_OS_MAC
+// returns the directory to place the config.ricochet directory on macOS
+// no trailing '/'
 static QString appBundlePath()
 {
     QString path = QApplication::applicationDirPath();
+    // if user left the binaries insidie the app bundle
     int p = path.lastIndexOf(QLatin1String(".app/"));
     if (p >= 0)
     {
+        // just some binaries floating around somewhere
         p = path.lastIndexOf(QLatin1Char('/'), p);
-        path = path.left(p+1);
+        path = path.left(p);
     }
 
     return path;
@@ -283,11 +287,12 @@ static bool initSettings(SettingsFile *settings, QLockFile **lockFile, QString &
         auto legacyConfigPath = []() -> QString {
             QString configPath;
 #ifdef Q_OS_MAC
-            if (!qApp->applicationDirPath().contains(QStringLiteral("/Applications"))) {
-                // Try old configuration path first
-                configPath = appBundlePath() + QStringLiteral("config.torsion");
-                if (!QFile::exists(configPath))
-                    configPath = appBundlePath() + QStringLiteral("config.ricochet");
+            // if the user has installed it to /Applications
+            if (qApp->applicationDirPath().contains(QStringLiteral("/Applications"))) {
+                // ~Library/Application Support/Ricochet/Ricochet-Refresh
+                configPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/Ricochet/Ricochet-Refresh");
+            } else {
+                configPath = appBundlePath() + QStringLiteral("/config.ricochet");
             }
 #else
             configPath = qApp->applicationDirPath() + QStringLiteral("/config");
